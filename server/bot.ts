@@ -104,17 +104,19 @@ export function setupBot() {
   });
 
   bot.command('ranking', async (ctx) => {
+    if (ctx.chat.type === 'private') return;
     ctx.deleteMessage().catch(() => {});
     
     try {
-      const topPlayers = await storage.getTopPlayers(10);
+      // Cambio: Ahora pide el ranking filtrado por el ID de este grupo
+      const topPlayers = await storage.getTopPlayersByChat(ctx.chat.id.toString(), 10);
       if (topPlayers.length === 0) {
-        const msg = await ctx.reply("El ranking está vacío. ¡Jueguen la primera partida!");
+        const msg = await ctx.reply("El ranking de este grupo está vacío. ¡Jueguen la primera partida!");
         setTimeout(() => { ctx.deleteMessage(msg.message_id).catch(() => {}); }, 4000);
         return;
       }
 
-      let rankingMsg = "🏆 *RANKING GLOBAL* 🏆\n\n";
+      let rankingMsg = "🏆 *RANKING DEL GRUPO* 🏆\n\n";
       topPlayers.forEach((p, index) => {
         let medal = index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : "👤";
         rankingMsg += `${medal} *${p.firstName}*: ${p.points} pts\n`;
@@ -123,14 +125,12 @@ export function setupBot() {
       rankingMsg += "\n_Para ver tu puntuación personal, toca el botón al terminar una partida._";
       
       const msg = await ctx.reply(rankingMsg, { parse_mode: 'Markdown' });
-      // El ranking grupal se borra a los 10 segundos para no dejar basura
       setTimeout(() => { ctx.deleteMessage(msg.message_id).catch(() => {}); }, 10000);
     } catch (e) {
       console.error(e);
     }
   });
 
-  // CICLO DE JUEGO CIRCULAR: JUGAR DE NUEVO
   bot.action('play_again', async (ctx) => {
     const chatId = ctx.chat?.id;
     if (!chatId) return;
@@ -139,7 +139,6 @@ export function setupBot() {
       return ctx.answerCbQuery("Ya hay una partida abriéndose.", { show_alert: true });
     }
 
-    // Creamos la nueva partida al instante
     activeGames.set(chatId, {
       hostId: ctx.from.id,
       hostName: ctx.from.first_name,
@@ -152,22 +151,23 @@ export function setupBot() {
 
     const { text, keyboard } = renderLobby(activeGames.get(chatId));
     
-    // Transformamos el cartel de Resultados en el Lobby nuevo (cero mensajes nuevos)
     await ctx.editMessageText(text, keyboard);
     await ctx.answerCbQuery("¡Nueva partida creada!");
   });
 
-  // CONSULTAR PUNTOS PERSONALES (Pop-up invisible en el chat)
   bot.action('my_stats', async (ctx) => {
+    const chatId = ctx.chat?.id.toString();
+    if (!chatId) return;
     try {
-      const player = await storage.getPlayerByTelegramId(ctx.from.id.toString());
+      // Cambio: Busca al jugador filtrando por TelegramId Y ChatId
+      const player = await storage.getPlayerByTelegramId(ctx.from.id.toString(), chatId);
       if (player) {
         await ctx.answerCbQuery(
-          `👤 ${player.firstName}\n🏆 Puntos: ${player.points}\n🎮 Partidas jugadas: ${player.gamesPlayed || 0}`, 
+          `👤 ${player.firstName}\n🏆 Puntos en este grupo: ${player.points}\n🎮 Partidas jugadas: ${player.gamesPlayed || 0}`, 
           { show_alert: true }
         );
       } else {
-        await ctx.answerCbQuery("Aún no tienes puntos. ¡Juega y gana para aparecer en el ranking!", { show_alert: true });
+        await ctx.answerCbQuery("Aún no tienes puntos en este grupo.", { show_alert: true });
       }
     } catch (e) {
       await ctx.answerCbQuery("Error al buscar tus estadísticas.", { show_alert: true });
@@ -335,6 +335,7 @@ export function setupBot() {
     
     for (const p of game.players) {
       const pIdStr = p.toString();
+      const chatIdStr = chatId.toString(); // Cambio: Añadimos chatId
       const isImpostor = game.impostors.has(p);
       let pointsDelta = 0;
       let roleEmoji = isImpostor ? '😈' : '👨‍💼';
@@ -343,22 +344,21 @@ export function setupBot() {
       else if (winner === 'ciudadanos' && !isImpostor) pointsDelta = 1;
 
       try {
-        let player = await storage.getPlayerByTelegramId(pIdStr);
+        // Cambio: Buscamos y creamos usando chatIdStr
+        let player = await storage.getPlayerByTelegramId(pIdStr, chatIdStr);
         if (!player) {
           player = await storage.createPlayer({
             telegramId: pIdStr,
+            chatId: chatIdStr, // Cambio: Guardamos el grupo
             username: game.playerData.get(p).name,
             firstName: game.playerData.get(p).name,
             points: 0,
             gamesPlayed: 0
           });
         }
-        player = await storage.updatePlayerPoints(pIdStr, pointsDelta);
+        // Cambio: updatePlayerPoints ahora requiere chatIdStr
+        player = await storage.updatePlayerPoints(pIdStr, chatIdStr, pointsDelta);
         
-        // El error con updatePlayerGamesPlayed se soluciona así:
-        const [updated] = await storage.updatePlayerPoints(pIdStr, 0); // Solo para forzar actualización de juegos en db
-        player = updated || player; // Si falla, nos quedamos con el anterior.
-
         resultMessage += `${pointsDelta > 0 ? '+' : ''}${pointsDelta} pts ${roleEmoji} ${game.playerData.get(p).name} (Total: ${player.points})\n`;
       } catch (e) {
         console.error(e);
@@ -367,12 +367,12 @@ export function setupBot() {
 
     activeGames.delete(chatId);
 
-    // BOTONES POST-PARTIDA (Circular)
+    // BOTONES POST-PARTIDA (Circular) con URL dinámica del ranking
     const endKeyboard = Markup.inlineKeyboard([
       [Markup.button.callback('🔄 Jugar de nuevo', 'play_again')],
       [
         Markup.button.callback('👤 Mis Puntos', 'my_stats'), 
-        Markup.button.url('🌐 Ranking Web', 'https://impostor-game-hub.onrender.com')
+        Markup.button.url('🌐 Ranking del Grupo', `https://impostor-game-hub.onrender.com/ranking/${chatId}`)
       ]
     ]);
 
