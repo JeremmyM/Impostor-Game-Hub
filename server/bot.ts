@@ -34,7 +34,10 @@ const renderLobby = (game: any) => {
       Markup.button.callback('📚 Cambiar Categoría', 'menu_cat'),
       Markup.button.callback(`😈 Impostores: ${game.settings.impostors}`, 'toggle_imp')
     ],
-    [Markup.button.callback('🚀 Arrancar (Solo Anfitrión)', 'start_game')]
+    [
+      Markup.button.callback('🚀 Arrancar', 'start_game'),
+      Markup.button.callback('🛑 Cancelar', 'cancel_game')
+    ]
   ]);
   return { text, keyboard };
 };
@@ -56,7 +59,7 @@ export function setupBot() {
     const chatId = ctx.chat.id;
     
     if (activeGames.has(chatId)) {
-      const msg = await ctx.reply("Ya hay una partida configurándose.");
+      const msg = await ctx.reply("Ya hay una partida configurándose. Usa /cancelar si se quedó atascada.");
       deleteAfter(ctx, msg.message_id);
       return;
     }
@@ -74,6 +77,42 @@ export function setupBot() {
     ctx.deleteMessage().catch(() => {});
     const { text, keyboard } = renderLobby(activeGames.get(chatId));
     await ctx.reply(text, keyboard);
+  });
+
+  // COMANDO MANUAL PARA CANCELAR
+  bot.command('cancelar', async (ctx) => {
+    if (ctx.chat.type === 'private') return;
+    const chatId = ctx.chat.id;
+    
+    if (!activeGames.has(chatId)) {
+      const msg = await ctx.reply("No hay ninguna partida activa para cancelar.");
+      deleteAfter(ctx, msg.message_id);
+      return;
+    }
+
+    const game = activeGames.get(chatId);
+    if (game.hostId !== ctx.from.id) {
+      const msg = await ctx.reply("❌ Solo el anfitrión que creó la partida puede cancelarla.");
+      deleteAfter(ctx, msg.message_id);
+      return;
+    }
+
+    activeGames.delete(chatId);
+    ctx.deleteMessage().catch(() => {});
+    await ctx.reply("🛑 La partida ha sido cancelada por el anfitrión. El grupo está libre para un nuevo /iniciar.");
+  });
+
+  // BOTÓN INTEGRADO PARA CANCELAR
+  bot.action('cancel_game', async (ctx) => {
+    const chatId = ctx.chat?.id;
+    if (!chatId) return;
+    const game = activeGames.get(chatId);
+
+    if (!game) return ctx.answerCbQuery("No hay partida activa.", { show_alert: true });
+    if (game.hostId !== ctx.from.id) return ctx.answerCbQuery("❌ Solo el anfitrión puede cancelar.", { show_alert: true });
+
+    activeGames.delete(chatId);
+    await ctx.editMessageText("🛑 La partida ha sido cancelada por el anfitrión. El grupo está libre para un nuevo /iniciar.");
   });
 
   bot.action('join_game', async (ctx) => {
