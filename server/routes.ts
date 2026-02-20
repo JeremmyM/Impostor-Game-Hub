@@ -2,7 +2,6 @@ import type { Express } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
-import { z } from "zod";
 import { setupBot } from "./bot";
 
 export async function registerRoutes(
@@ -28,17 +27,18 @@ export async function registerRoutes(
     }
   });
 
-  // Seed db just in case it's empty
-  setTimeout(async () => {
+  // NUEVA RUTA: Recibe la orden del botón para borrar los datos
+  app.post("/api/reset", async (req, res) => {
     try {
-      const all = await storage.getTopPlayers(1);
-      if (all.length === 0) {
-        await storage.createPlayer({ telegramId: "12345", firstName: "CyberPlayer", username: "cyber_p", points: 15, gamesPlayed: 5 });
-        await storage.createPlayer({ telegramId: "67890", firstName: "NeonHacker", username: "neon_h", points: 8, gamesPlayed: 4 });
-        await storage.createPlayer({ telegramId: "11111", firstName: "ImpostorBot", username: "impostor_bot", points: 20, gamesPlayed: 10 });
-      }
-    } catch(e) {}
-  }, 3000);
+      await storage.resetAllStats();
+      res.json({ success: true, message: "Ranking reiniciado" });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ message: "Error al reiniciar" });
+    }
+  });
+
+  // ¡HEMOS ELIMINADO EL CÓDIGO QUE CREABA JUGADORES FALSOS!
 
   return httpServer;
 }
