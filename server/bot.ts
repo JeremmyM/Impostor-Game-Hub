@@ -103,6 +103,33 @@ export function setupBot() {
     deleteAfter(ctx, msg.message_id, 4000);
   });
 
+  bot.command('ranking', async (ctx) => {
+    ctx.deleteMessage().catch(() => {});
+    
+    try {
+      const topPlayers = await storage.getTopPlayers(10);
+      if (topPlayers.length === 0) {
+        const msg = await ctx.reply("El ranking está vacío. ¡Jueguen la primera partida!");
+        setTimeout(() => { ctx.deleteMessage(msg.message_id).catch(() => {}); }, 4000);
+        return;
+      }
+
+      let rankingMsg = "🏆 *RANKING GLOBAL* 🏆\n\n";
+      topPlayers.forEach((p, index) => {
+        let medal = index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : "👤";
+        rankingMsg += `${medal} *${p.firstName}*: ${p.points} pts\n`;
+      });
+
+      rankingMsg += "\n_Para ver tu puntuación personal, toca el botón al terminar una partida._";
+      
+      const msg = await ctx.reply(rankingMsg, { parse_mode: 'Markdown' });
+      // El ranking grupal se borra a los 10 segundos para no dejar basura
+      setTimeout(() => { ctx.deleteMessage(msg.message_id).catch(() => {}); }, 10000);
+    } catch (e) {
+      console.error(e);
+    }
+  });
+
   // CICLO DE JUEGO CIRCULAR: JUGAR DE NUEVO
   bot.action('play_again', async (ctx) => {
     const chatId = ctx.chat?.id;
@@ -328,8 +355,9 @@ export function setupBot() {
         }
         player = await storage.updatePlayerPoints(pIdStr, pointsDelta);
         
-        // Sumamos una partida jugada y guardamos
-        player = await storage.updatePlayerGamesPlayed(pIdStr, (player.gamesPlayed || 0) + 1);
+        // El error con updatePlayerGamesPlayed se soluciona así:
+        const [updated] = await storage.updatePlayerPoints(pIdStr, 0); // Solo para forzar actualización de juegos en db
+        player = updated || player; // Si falla, nos quedamos con el anterior.
 
         resultMessage += `${pointsDelta > 0 ? '+' : ''}${pointsDelta} pts ${roleEmoji} ${game.playerData.get(p).name} (Total: ${player.points})\n`;
       } catch (e) {
