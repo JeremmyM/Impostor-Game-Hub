@@ -1,26 +1,27 @@
 import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
-
-// --- ESTE ES EL PARCHE ---
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-// -------------------------
 
 export function serveStatic(app: Express) {
-  // Ahora __dirname funcionará correctamente
-  const distPath = path.resolve(__dirname, "..", "public"); 
+  // process.cwd() apunta a la raíz del proyecto en Render (/opt/render/project/src)
+  // Esto es mucho más seguro que usar __dirname
+  const distPath = path.resolve(process.cwd(), "dist", "public"); 
   
   if (!fs.existsSync(distPath)) {
     throw new Error(
-      `Could not find the build directory: ${distPath}, make sure to build the client first`,
+      `No se encontró el directorio de build: ${distPath}. Asegúrate de que el comando de build generó esta carpeta.`
     );
   }
 
   app.use(express.static(distPath));
 
+  // Manejador para la Single Page Application (SPA)
   app.use("*", (_req, res) => {
-    res.sendFile(path.resolve(distPath, "index.html"));
+    const indexPath = path.resolve(distPath, "index.html");
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(404).send("index.html no encontrado en el servidor");
+    }
   });
 }
