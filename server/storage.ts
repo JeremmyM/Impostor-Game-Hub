@@ -8,6 +8,7 @@ export interface IStorage {
   updatePlayerPoints(telegramId: string, pointsDelta: number): Promise<Player>;
   getTopPlayers(limit: number): Promise<Player[]>;
   getTotalStats(): Promise<{ totalPlayers: number, totalGames: number }>;
+  resetAllStats(): Promise<void>; // NUEVA FUNCIÓN
 }
 
 export class DatabaseStorage implements IStorage {
@@ -43,6 +44,11 @@ export class DatabaseStorage implements IStorage {
     const totalPlayers = allPlayers.length;
     const totalGames = allPlayers.reduce((sum, p) => sum + p.gamesPlayed, 0);
     return { totalPlayers, totalGames };
+  }
+
+  // NUEVA FUNCIÓN QUE BORRA TODOS LOS DATOS
+  async resetAllStats(): Promise<void> {
+    await db.delete(players); 
   }
 }
 
