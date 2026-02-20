@@ -16,7 +16,8 @@ export function serveStatic(app: Express) {
   app.use(express.static(distPath));
 
   // Manejador para la Single Page Application (SPA)
-  app.use("*", (_req, res) => {
+  // ¡AQUÍ ESTÁ LA CORRECCIÓN! Cambiamos "*" por "/{*path}"
+  app.use("/{*path}", (_req, res) => {
     const indexPath = path.resolve(distPath, "index.html");
     if (fs.existsSync(indexPath)) {
       res.sendFile(indexPath);
