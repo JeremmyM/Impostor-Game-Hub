@@ -57,7 +57,6 @@ export function setupBot() {
     if (ctx.chat.type === 'private') return ctx.reply("Este comando solo funciona en grupos.");
     const chatId = ctx.chat.id;
     
-    // Borramos el comando /iniciar al instante (si es admin)
     ctx.deleteMessage().catch(() => {});
 
     if (activeGames.has(chatId)) {
@@ -84,7 +83,7 @@ export function setupBot() {
     if (ctx.chat.type === 'private') return;
     const chatId = ctx.chat.id;
     
-    ctx.deleteMessage().catch(() => {}); // Borra el /cancelar
+    ctx.deleteMessage().catch(() => {});
 
     if (!activeGames.has(chatId)) {
       const msg = await ctx.reply("No hay ninguna partida activa para cancelar.");
@@ -101,7 +100,51 @@ export function setupBot() {
 
     activeGames.delete(chatId);
     const msg = await ctx.reply("🛑 La partida ha sido cancelada por el anfitrión.");
-    deleteAfter(ctx, msg.message_id, 4000); // Borra el aviso a los 4 segundos
+    deleteAfter(ctx, msg.message_id, 4000);
+  });
+
+  // CICLO DE JUEGO CIRCULAR: JUGAR DE NUEVO
+  bot.action('play_again', async (ctx) => {
+    const chatId = ctx.chat?.id;
+    if (!chatId) return;
+
+    if (activeGames.has(chatId)) {
+      return ctx.answerCbQuery("Ya hay una partida abriéndose.", { show_alert: true });
+    }
+
+    // Creamos la nueva partida al instante
+    activeGames.set(chatId, {
+      hostId: ctx.from.id,
+      hostName: ctx.from.first_name,
+      state: 'waiting',
+      players: new Set<number>([ctx.from.id]),
+      playerData: new Map<number, { id: number, name: string }>(),
+      settings: { category: 'Aleatorio', impostors: 1 }
+    });
+    activeGames.get(chatId).playerData.set(ctx.from.id, { id: ctx.from.id, name: ctx.from.first_name });
+
+    const { text, keyboard } = renderLobby(activeGames.get(chatId));
+    
+    // Transformamos el cartel de Resultados en el Lobby nuevo (cero mensajes nuevos)
+    await ctx.editMessageText(text, keyboard);
+    await ctx.answerCbQuery("¡Nueva partida creada!");
+  });
+
+  // CONSULTAR PUNTOS PERSONALES (Pop-up invisible en el chat)
+  bot.action('my_stats', async (ctx) => {
+    try {
+      const player = await storage.getPlayerByTelegramId(ctx.from.id.toString());
+      if (player) {
+        await ctx.answerCbQuery(
+          `👤 ${player.firstName}\n🏆 Puntos: ${player.points}\n🎮 Partidas jugadas: ${player.gamesPlayed || 0}`, 
+          { show_alert: true }
+        );
+      } else {
+        await ctx.answerCbQuery("Aún no tienes puntos. ¡Juega y gana para aparecer en el ranking!", { show_alert: true });
+      }
+    } catch (e) {
+      await ctx.answerCbQuery("Error al buscar tus estadísticas.", { show_alert: true });
+    }
   });
 
   bot.action('cancel_game', async (ctx) => {
@@ -114,7 +157,6 @@ export function setupBot() {
 
     activeGames.delete(chatId);
     await ctx.editMessageText("🛑 La partida ha sido cancelada por el anfitrión.");
-    // Autodestruye el menú cancelado después de 4 segundos
     setTimeout(() => { ctx.deleteMessage().catch(() => {}); }, 4000);
   });
 
@@ -193,7 +235,6 @@ export function setupBot() {
     if (!game || game.state !== 'waiting') return;
     if (game.hostId !== ctx.from.id) return ctx.answerCbQuery("❌ Solo el anfitrión puede arrancar el juego.", { show_alert: true });
     
-    // ⚠️ LÍMITE DE PRUEBA: 2 JUGADORES
     if (game.players.size < 2) return ctx.answerCbQuery("⚠️ Faltan jugadores. Mínimo 2.", { show_alert: true });
     if (game.settings.impostors >= game.players.size) return ctx.answerCbQuery("⚠️ Hay demasiados impostores para tan pocos jugadores.", { show_alert: true });
 
@@ -263,8 +304,6 @@ export function setupBot() {
     if (game.hostId !== ctx.from.id) return ctx.answerCbQuery("❌ Solo el anfitrión puede finalizar la partida.", { show_alert: true });
 
     const winner = ctx.match[1] === 'cits' ? 'ciudadanos' : 'impostores';
-    
-    // CREAMOS EL MENSAJE FINAL DE PUNTUACIONES
     let resultMessage = `🏆 ¡PARTIDA TERMINADA! 🏆\n\nGanaron los *${winner.toUpperCase()}* 🎉\n\n📊 REPARTO DE PUNTOS:\n`;
     
     for (const p of game.players) {
@@ -289,7 +328,9 @@ export function setupBot() {
         }
         player = await storage.updatePlayerPoints(pIdStr, pointsDelta);
         
-        // Sumamos el texto del jugador al resumen
+        // Sumamos una partida jugada y guardamos
+        player = await storage.updatePlayerGamesPlayed(pIdStr, (player.gamesPlayed || 0) + 1);
+
         resultMessage += `${pointsDelta > 0 ? '+' : ''}${pointsDelta} pts ${roleEmoji} ${game.playerData.get(p).name} (Total: ${player.points})\n`;
       } catch (e) {
         console.error(e);
@@ -297,7 +338,20 @@ export function setupBot() {
     }
 
     activeGames.delete(chatId);
-    await ctx.editMessageText(resultMessage, { parse_mode: 'Markdown' });
+
+    // BOTONES POST-PARTIDA (Circular)
+    const endKeyboard = Markup.inlineKeyboard([
+      [Markup.button.callback('🔄 Jugar de nuevo', 'play_again')],
+      [
+        Markup.button.callback('👤 Mis Puntos', 'my_stats'), 
+        Markup.button.url('🌐 Ranking Web', 'https://impostor-game-hub.onrender.com')
+      ]
+    ]);
+
+    await ctx.editMessageText(resultMessage, { 
+      parse_mode: 'Markdown',
+      reply_markup: endKeyboard.reply_markup
+    });
   });
 
   bot.launch().then(() => { console.log("🚀 Telegram Bot started!"); });
