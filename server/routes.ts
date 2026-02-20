@@ -2,6 +2,7 @@ import type { Express } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
+import { z } from "zod";
 import { setupBot } from "./bot";
 
 export async function registerRoutes(
@@ -27,7 +28,7 @@ export async function registerRoutes(
     }
   });
 
-  // NUEVA RUTA: Recibe la orden del botón para borrar los datos
+  // NUEVA RUTA PARA REINICIAR LA BASE DE DATOS
   app.post("/api/reset", async (req, res) => {
     try {
       await storage.resetAllStats();
@@ -38,7 +39,7 @@ export async function registerRoutes(
     }
   });
 
-  // ¡HEMOS ELIMINADO EL CÓDIGO QUE CREABA JUGADORES FALSOS!
+  // Nota: El bloque "Seed db" ha sido eliminado para que no vuelvan a aparecer los usuarios falsos.
 
   return httpServer;
 }
