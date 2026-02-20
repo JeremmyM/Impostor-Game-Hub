@@ -18,7 +18,6 @@ const deleteAfter = (ctx: any, msgId: number, delay = 3000) => {
   }, delay);
 };
 
-// Función para dibujar el menú principal de la sala
 const renderLobby = (game: any) => {
   let playerNames = Array.from(game.playerData.values()).map((p: any) => `- ${p.name}`).join('\n');
   const text = `🎮 ¡Partida creada por ${game.hostName}!\n\n` +
@@ -50,7 +49,7 @@ export function setupBot() {
 
   bot.command('start', async (ctx) => {
     if (ctx.chat.type === 'private') {
-      await ctx.reply("¡Hola! Soy El Impostor Pro 🤖.\nAñádeme a un grupo para empezar a jugar.\n\nEscribe /iniciar en el grupo para abrir una sala.");
+      await ctx.reply("¡Hola! Soy El Impostor Pro 🤖.\nAñádeme a un grupo (Y HAZME ADMINISTRADOR) para empezar a jugar.\n\nEscribe /iniciar en el grupo para abrir una sala.");
     }
   });
 
@@ -58,9 +57,12 @@ export function setupBot() {
     if (ctx.chat.type === 'private') return ctx.reply("Este comando solo funciona en grupos.");
     const chatId = ctx.chat.id;
     
+    // Borramos el comando /iniciar al instante (si es admin)
+    ctx.deleteMessage().catch(() => {});
+
     if (activeGames.has(chatId)) {
       const msg = await ctx.reply("Ya hay una partida configurándose. Usa /cancelar si se quedó atascada.");
-      deleteAfter(ctx, msg.message_id);
+      deleteAfter(ctx, msg.message_id, 4000);
       return;
     }
 
@@ -74,35 +76,34 @@ export function setupBot() {
     });
     activeGames.get(chatId).playerData.set(ctx.from.id, { id: ctx.from.id, name: ctx.from.first_name });
 
-    ctx.deleteMessage().catch(() => {});
     const { text, keyboard } = renderLobby(activeGames.get(chatId));
     await ctx.reply(text, keyboard);
   });
 
-  // COMANDO MANUAL PARA CANCELAR
   bot.command('cancelar', async (ctx) => {
     if (ctx.chat.type === 'private') return;
     const chatId = ctx.chat.id;
     
+    ctx.deleteMessage().catch(() => {}); // Borra el /cancelar
+
     if (!activeGames.has(chatId)) {
       const msg = await ctx.reply("No hay ninguna partida activa para cancelar.");
-      deleteAfter(ctx, msg.message_id);
+      deleteAfter(ctx, msg.message_id, 3000);
       return;
     }
 
     const game = activeGames.get(chatId);
     if (game.hostId !== ctx.from.id) {
       const msg = await ctx.reply("❌ Solo el anfitrión que creó la partida puede cancelarla.");
-      deleteAfter(ctx, msg.message_id);
+      deleteAfter(ctx, msg.message_id, 3000);
       return;
     }
 
     activeGames.delete(chatId);
-    ctx.deleteMessage().catch(() => {});
-    await ctx.reply("🛑 La partida ha sido cancelada por el anfitrión. El grupo está libre para un nuevo /iniciar.");
+    const msg = await ctx.reply("🛑 La partida ha sido cancelada por el anfitrión.");
+    deleteAfter(ctx, msg.message_id, 4000); // Borra el aviso a los 4 segundos
   });
 
-  // BOTÓN INTEGRADO PARA CANCELAR
   bot.action('cancel_game', async (ctx) => {
     const chatId = ctx.chat?.id;
     if (!chatId) return;
@@ -112,7 +113,9 @@ export function setupBot() {
     if (game.hostId !== ctx.from.id) return ctx.answerCbQuery("❌ Solo el anfitrión puede cancelar.", { show_alert: true });
 
     activeGames.delete(chatId);
-    await ctx.editMessageText("🛑 La partida ha sido cancelada por el anfitrión. El grupo está libre para un nuevo /iniciar.");
+    await ctx.editMessageText("🛑 La partida ha sido cancelada por el anfitrión.");
+    // Autodestruye el menú cancelado después de 4 segundos
+    setTimeout(() => { ctx.deleteMessage().catch(() => {}); }, 4000);
   });
 
   bot.action('join_game', async (ctx) => {
@@ -131,7 +134,6 @@ export function setupBot() {
     await ctx.answerCbQuery("¡Te has unido a la partida!");
   });
 
-  // BOTÓN: CAMBIAR CANTIDAD DE IMPOSTORES
   bot.action('toggle_imp', async (ctx) => {
     const chatId = ctx.chat?.id;
     if (!chatId) return;
@@ -145,7 +147,6 @@ export function setupBot() {
     await ctx.editMessageText(text, keyboard);
   });
 
-  // BOTÓN: MENÚ DE CATEGORÍAS
   bot.action('menu_cat', async (ctx) => {
     const chatId = ctx.chat?.id;
     if (!chatId) return;
@@ -163,7 +164,6 @@ export function setupBot() {
     await ctx.editMessageText("📚 Selecciona la categoría para esta partida:", keyboard);
   });
 
-  // SELECCIONAR UNA CATEGORÍA ESPECÍFICA (Usa Regex para detectar cualquiera)
   bot.action(/cat_(.+)/, async (ctx) => {
     const chatId = ctx.chat?.id;
     if (!chatId) return;
@@ -175,7 +175,6 @@ export function setupBot() {
     await ctx.editMessageText(text, keyboard);
   });
 
-  // VOLVER AL LOBBY
   bot.action('back_lobby', async (ctx) => {
     const chatId = ctx.chat?.id;
     if (!chatId) return;
@@ -194,7 +193,7 @@ export function setupBot() {
     if (!game || game.state !== 'waiting') return;
     if (game.hostId !== ctx.from.id) return ctx.answerCbQuery("❌ Solo el anfitrión puede arrancar el juego.", { show_alert: true });
     
-    // ⚠️ LÍMITE DE PRUEBA: 2 JUGADORES (Cámbialo a 3 o más cuando juegues con amigos)
+    // ⚠️ LÍMITE DE PRUEBA: 2 JUGADORES
     if (game.players.size < 2) return ctx.answerCbQuery("⚠️ Faltan jugadores. Mínimo 2.", { show_alert: true });
     if (game.settings.impostors >= game.players.size) return ctx.answerCbQuery("⚠️ Hay demasiados impostores para tan pocos jugadores.", { show_alert: true });
 
@@ -207,11 +206,9 @@ export function setupBot() {
     const playersArray = Array.from(game.players);
     playersArray.sort(() => Math.random() - 0.5);
     
-    // Asignar impostores según la configuración
     game.impostors = new Set(playersArray.slice(0, game.settings.impostors));
     game.citizens = new Set(playersArray.slice(game.settings.impostors));
     
-    // Elegir palabra secreta
     let secretWord = "";
     if (game.settings.category === 'Aleatorio') {
       const allWords = Object.values(CATEGORIES).flat();
@@ -238,6 +235,7 @@ export function setupBot() {
     if (failures > 0) {
       await ctx.editMessageText(`⚠️ ATENCIÓN: ${failures} jugador(es) no le ha hablado al bot por privado. ¡Partida cancelada!`);
       activeGames.delete(chatId);
+      setTimeout(() => { ctx.deleteMessage().catch(() => {}); }, 6000);
       return;
     }
 
@@ -256,7 +254,6 @@ export function setupBot() {
     );
   });
 
-  // BOTONES DE FINALIZAR REPARADOS CON REGEX
   bot.action(/win_(cits|imp)/, async (ctx) => {
     const chatId = ctx.chat?.id;
     if (!chatId) return;
@@ -265,13 +262,16 @@ export function setupBot() {
     if (!game || game.state !== 'playing') return;
     if (game.hostId !== ctx.from.id) return ctx.answerCbQuery("❌ Solo el anfitrión puede finalizar la partida.", { show_alert: true });
 
-    // match[1] captura si fue 'cits' o 'imp'
     const winner = ctx.match[1] === 'cits' ? 'ciudadanos' : 'impostores';
+    
+    // CREAMOS EL MENSAJE FINAL DE PUNTUACIONES
+    let resultMessage = `🏆 ¡PARTIDA TERMINADA! 🏆\n\nGanaron los *${winner.toUpperCase()}* 🎉\n\n📊 REPARTO DE PUNTOS:\n`;
     
     for (const p of game.players) {
       const pIdStr = p.toString();
       const isImpostor = game.impostors.has(p);
       let pointsDelta = 0;
+      let roleEmoji = isImpostor ? '😈' : '👨‍💼';
       
       if (winner === 'impostores' && isImpostor) pointsDelta = 3;
       else if (winner === 'ciudadanos' && !isImpostor) pointsDelta = 1;
@@ -287,14 +287,17 @@ export function setupBot() {
             gamesPlayed: 0
           });
         }
-        await storage.updatePlayerPoints(pIdStr, pointsDelta);
+        player = await storage.updatePlayerPoints(pIdStr, pointsDelta);
+        
+        // Sumamos el texto del jugador al resumen
+        resultMessage += `${pointsDelta > 0 ? '+' : ''}${pointsDelta} pts ${roleEmoji} ${game.playerData.get(p).name} (Total: ${player.points})\n`;
       } catch (e) {
         console.error(e);
       }
     }
 
     activeGames.delete(chatId);
-    await ctx.editMessageText(`🏆 ¡Partida terminada!\n\nLos ${winner.toUpperCase()} han ganado.\n¡Puntos guardados en el ranking web!`);
+    await ctx.editMessageText(resultMessage, { parse_mode: 'Markdown' });
   });
 
   bot.launch().then(() => { console.log("🚀 Telegram Bot started!"); });
