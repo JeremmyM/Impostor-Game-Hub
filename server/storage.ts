@@ -8,7 +8,7 @@ export interface IStorage {
   updatePlayerPoints(telegramId: string, pointsDelta: number): Promise<Player>;
   getTopPlayers(limit: number): Promise<Player[]>;
   getTotalStats(): Promise<{ totalPlayers: number, totalGames: number }>;
-  resetAllStats(): Promise<void>; // NUEVA FUNCIÓN
+  resetAllStats(): Promise<void>; // NUEVO METODO PARA BORRAR
 }
 
 export class DatabaseStorage implements IStorage {
@@ -28,7 +28,7 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db.update(players)
       .set({ 
         points: player.points + pointsDelta,
-        gamesPlayed: player.gamesPlayed + 1
+        gamesPlayed: (player.gamesPlayed || 0) + 1
       })
       .where(eq(players.telegramId, telegramId))
       .returning();
@@ -42,13 +42,13 @@ export class DatabaseStorage implements IStorage {
   async getTotalStats(): Promise<{ totalPlayers: number, totalGames: number }> {
     const allPlayers = await db.select().from(players);
     const totalPlayers = allPlayers.length;
-    const totalGames = allPlayers.reduce((sum, p) => sum + p.gamesPlayed, 0);
+    const totalGames = allPlayers.reduce((sum, p) => sum + (p.gamesPlayed || 0), 0);
     return { totalPlayers, totalGames };
   }
 
-  // NUEVA FUNCIÓN QUE BORRA TODOS LOS DATOS
+  // FUNCIÓN PARA VACIAR LA BASE DE DATOS
   async resetAllStats(): Promise<void> {
-    await db.delete(players); 
+    await db.delete(players);
   }
 }
 
