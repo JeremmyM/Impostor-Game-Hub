@@ -1,9 +1,20 @@
 import { useStats } from "@/hooks/use-stats";
-import { Trophy, Medal, User } from "lucide-react";
+import { Trophy, Medal, User, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 
 export function Leaderboard() {
   const { data: stats, isLoading } = useStats();
+
+  const handleReset = async () => {
+    if (window.confirm("⚠️ ¿Seguro que quieres borrar TODOS los puntos y jugadores? Esto no se puede deshacer.")) {
+      try {
+        await fetch("/api/reset", { method: "POST" });
+        window.location.reload();
+      } catch (e) {
+        alert("Error al reiniciar los puntos");
+      }
+    }
+  };
 
   if (isLoading) {
     return (
@@ -28,8 +39,18 @@ export function Leaderboard() {
             <Trophy className="w-6 h-6 text-yellow-500" />
             <h3 className="text-xl font-bold text-foreground">Agentes de Élite</h3>
           </div>
-          <div className="text-sm font-mono text-muted-foreground">
-            Total Jugadores: <span className="text-primary font-bold">{stats?.totalPlayers || 0}</span>
+          <div className="flex items-center gap-4">
+            <div className="text-sm font-mono text-muted-foreground">
+              Total Jugadores: <span className="text-primary font-bold">{stats?.totalPlayers || 0}</span>
+            </div>
+            {/* BOTÓN DE REINICIO AÑADIDO */}
+            <button 
+              onClick={handleReset}
+              className="flex items-center gap-1 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 px-3 py-1.5 rounded text-xs font-bold transition-colors"
+              title="Borrar todos los puntos"
+            >
+              <Trash2 className="w-4 h-4" /> RESETEAR
+            </button>
           </div>
         </div>
 
