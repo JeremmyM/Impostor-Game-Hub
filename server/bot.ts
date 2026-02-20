@@ -74,7 +74,7 @@ export function setupBot() {
       return ctx.reply("Solo el anfitrión puede arrancar la partida.");
     }
 
-    if (game.players.size < 3) {
+    if (game.players.size < 2) {
       return ctx.reply("Se necesitan al menos 3 jugadores para empezar.");
     }
 
