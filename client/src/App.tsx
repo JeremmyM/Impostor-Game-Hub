@@ -9,7 +9,13 @@ import Landing from "@/pages/Landing";
 function Router() {
   return (
     <Switch>
+      {/* Ruta para el ranking global */}
       <Route path="/" component={Landing} />
+      
+      {/* NUEVA RUTA: Captura el ID del grupo (chatId) y carga la misma página Landing */}
+      <Route path="/ranking/:chatId" component={Landing} />
+      
+      {/* Si no coincide con ninguna de las anteriores, muestra 404 */}
       <Route component={NotFound} />
     </Switch>
   );
