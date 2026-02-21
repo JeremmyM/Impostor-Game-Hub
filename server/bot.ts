@@ -3,7 +3,6 @@ import { storage } from './storage';
 
 const activeGames = new Map<number, any>();
 
-// 📚 DICCIONARIO MASIVO DE PALABRAS
 const CATEGORIES: Record<string, string[]> = {
   'Animales': ['León', 'Elefante', 'Tigre', 'Jirafa', 'Delfín', 'Pingüino', 'Canguro', 'Oso', 'Lobo', 'Águila', 'Tiburón', 'Cocodrilo', 'Serpiente', 'Caballo', 'Cerdo', 'Vaca', 'Gato', 'Perro', 'Conejo', 'Rata'],
   'Tecnología': ['Smartphone', 'Computadora', 'Internet', 'Software', 'Hardware', 'Teclado', 'Ratón', 'Monitor', 'Cámara', 'Dron', 'Robot', 'Microchip', 'Satélite', 'Criptomoneda', 'Videojuego', 'Realidad Virtual', 'Inteligencia Artificial', 'Servidor', 'Nube', 'Batería'],
@@ -49,18 +48,17 @@ export function setupBot() {
 
   bot.command('start', async (ctx) => {
     if (ctx.chat.type === 'private') {
-      await ctx.reply("¡Hola! Soy El Impostor Pro 🤖.\nAñádeme a un grupo (Y HAZME ADMINISTRADOR) para empezar a jugar.\n\nEscribe /iniciar en el grupo para abrir una sala.");
+      await ctx.reply("¡Hola! Soy El Impostor Pro 🤖.\nAñádeme a un grupo para empezar.\n\nEscribe /iniciar en el grupo para abrir una sala.");
     }
   });
 
   bot.command('iniciar', async (ctx) => {
     if (ctx.chat.type === 'private') return ctx.reply("Este comando solo funciona en grupos.");
     const chatId = ctx.chat.id;
-    
     ctx.deleteMessage().catch(() => {});
 
     if (activeGames.has(chatId)) {
-      const msg = await ctx.reply("Ya hay una partida configurándose. Usa /cancelar si se quedó atascada.");
+      const msg = await ctx.reply("Ya hay una partida configurándose.");
       deleteAfter(ctx, msg.message_id, 4000);
       return;
     }
@@ -79,65 +77,59 @@ export function setupBot() {
     await ctx.reply(text, keyboard);
   });
 
-  bot.command('cancelar', async (ctx) => {
-    if (ctx.chat.type === 'private') return;
-    const chatId = ctx.chat.id;
-    
-    ctx.deleteMessage().catch(() => {});
-
-    if (!activeGames.has(chatId)) {
-      const msg = await ctx.reply("No hay ninguna partida activa para cancelar.");
-      deleteAfter(ctx, msg.message_id, 3000);
-      return;
-    }
-
-    const game = activeGames.get(chatId);
-    if (game.hostId !== ctx.from.id) {
-      const msg = await ctx.reply("❌ Solo el anfitrión que creó la partida puede cancelarla.");
-      deleteAfter(ctx, msg.message_id, 3000);
-      return;
-    }
-
-    activeGames.delete(chatId);
-    const msg = await ctx.reply("🛑 La partida ha sido cancelada por el anfitrión.");
-    deleteAfter(ctx, msg.message_id, 4000);
-  });
-
+  // COMANDO RANKING: Muestra el top 10 en el chat
   bot.command('ranking', async (ctx) => {
     if (ctx.chat.type === 'private') return;
     ctx.deleteMessage().catch(() => {});
     
-    try {
-      // Cambio: Ahora pide el ranking filtrado por el ID de este grupo
-      const topPlayers = await storage.getTopPlayersByChat(ctx.chat.id.toString(), 10);
-      if (topPlayers.length === 0) {
-        const msg = await ctx.reply("El ranking de este grupo está vacío. ¡Jueguen la primera partida!");
-        setTimeout(() => { ctx.deleteMessage(msg.message_id).catch(() => {}); }, 4000);
-        return;
-      }
+    const topPlayers = await storage.getTopPlayersByChat(ctx.chat.id.toString(), 10);
+    if (topPlayers.length === 0) {
+      const msg = await ctx.reply("Nadie ha jugado aún en este grupo.");
+      deleteAfter(ctx, msg.message_id, 4000);
+      return;
+    }
 
-      let rankingMsg = "🏆 *RANKING DEL GRUPO* 🏆\n\n";
-      topPlayers.forEach((p, index) => {
-        let medal = index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : "👤";
-        rankingMsg += `${medal} *${p.firstName}*: ${p.points} pts\n`;
-      });
+    let rankingMsg = "🏆 *RANKING DEL GRUPO* 🏆\n\n";
+    topPlayers.forEach((p, i) => {
+      const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "👤";
+      rankingMsg += `${medal} *${p.firstName}*: ${p.points} pts\n`;
+    });
+    
+    const msg = await ctx.reply(rankingMsg, { parse_mode: 'Markdown' });
+    deleteAfter(ctx, msg.message_id, 15000);
+  });
 
-      rankingMsg += "\n_Para ver tu puntuación personal, toca el botón al terminar una partida._";
-      
-      const msg = await ctx.reply(rankingMsg, { parse_mode: 'Markdown' });
-      setTimeout(() => { ctx.deleteMessage(msg.message_id).catch(() => {}); }, 10000);
-    } catch (e) {
-      console.error(e);
+  // ACCIÓN: Ver ranking desde botón
+  bot.action('view_group_ranking', async (ctx) => {
+    const chatId = ctx.chat?.id.toString();
+    if (!chatId) return;
+
+    const topPlayers = await storage.getTopPlayersByChat(chatId, 10);
+    if (topPlayers.length === 0) return ctx.answerCbQuery("Sin datos aún.");
+
+    let msg = "🏆 *TOP 10 DEL GRUPO*\n\n";
+    topPlayers.forEach((p, i) => {
+      msg += `${i + 1}. *${p.firstName}* - ${p.points} pts\n`;
+    });
+
+    await ctx.reply(msg, { parse_mode: 'Markdown' });
+    ctx.answerCbQuery();
+  });
+
+  bot.action('my_stats', async (ctx) => {
+    const chatId = ctx.chat?.id.toString();
+    if (!chatId) return;
+    const player = await storage.getPlayerByTelegramId(ctx.from.id.toString(), chatId);
+    if (player) {
+      await ctx.answerCbQuery(`👤 ${player.firstName}\n🏆 Puntos: ${player.points}\n🎮 Partidas: ${player.gamesPlayed}`, { show_alert: true });
+    } else {
+      await ctx.answerCbQuery("No tienes puntos en este grupo.", { show_alert: true });
     }
   });
 
   bot.action('play_again', async (ctx) => {
     const chatId = ctx.chat?.id;
-    if (!chatId) return;
-
-    if (activeGames.has(chatId)) {
-      return ctx.answerCbQuery("Ya hay una partida abriéndose.", { show_alert: true });
-    }
+    if (!chatId || activeGames.has(chatId)) return ctx.answerCbQuery("Ya hay una partida activa.");
 
     activeGames.set(chatId, {
       hostId: ctx.from.id,
@@ -150,241 +142,126 @@ export function setupBot() {
     activeGames.get(chatId).playerData.set(ctx.from.id, { id: ctx.from.id, name: ctx.from.first_name });
 
     const { text, keyboard } = renderLobby(activeGames.get(chatId));
-    
     await ctx.editMessageText(text, keyboard);
-    await ctx.answerCbQuery("¡Nueva partida creada!");
-  });
-
-  bot.action('my_stats', async (ctx) => {
-    const chatId = ctx.chat?.id.toString();
-    if (!chatId) return;
-    try {
-      // Cambio: Busca al jugador filtrando por TelegramId Y ChatId
-      const player = await storage.getPlayerByTelegramId(ctx.from.id.toString(), chatId);
-      if (player) {
-        await ctx.answerCbQuery(
-          `👤 ${player.firstName}\n🏆 Puntos en este grupo: ${player.points}\n🎮 Partidas jugadas: ${player.gamesPlayed || 0}`, 
-          { show_alert: true }
-        );
-      } else {
-        await ctx.answerCbQuery("Aún no tienes puntos en este grupo.", { show_alert: true });
-      }
-    } catch (e) {
-      await ctx.answerCbQuery("Error al buscar tus estadísticas.", { show_alert: true });
-    }
-  });
-
-  bot.action('cancel_game', async (ctx) => {
-    const chatId = ctx.chat?.id;
-    if (!chatId) return;
-    const game = activeGames.get(chatId);
-
-    if (!game) return ctx.answerCbQuery("No hay partida activa.", { show_alert: true });
-    if (game.hostId !== ctx.from.id) return ctx.answerCbQuery("❌ Solo el anfitrión puede cancelar.", { show_alert: true });
-
-    activeGames.delete(chatId);
-    await ctx.editMessageText("🛑 La partida ha sido cancelada por el anfitrión.");
-    setTimeout(() => { ctx.deleteMessage().catch(() => {}); }, 4000);
+    ctx.answerCbQuery();
   });
 
   bot.action('join_game', async (ctx) => {
     const chatId = ctx.chat?.id;
-    if (!chatId) return;
-    const game = activeGames.get(chatId);
-
-    if (!game || game.state !== 'waiting') return ctx.answerCbQuery("La partida no está disponible.", { show_alert: true });
-    if (game.players.has(ctx.from.id)) return ctx.answerCbQuery("¡Ya estás dentro!");
+    const game = chatId ? activeGames.get(chatId) : null;
+    if (!game || game.state !== 'waiting') return ctx.answerCbQuery("No disponible.");
+    if (game.players.has(ctx.from.id)) return ctx.answerCbQuery("Ya estás dentro.");
 
     game.players.add(ctx.from.id);
     game.playerData.set(ctx.from.id, { id: ctx.from.id, name: ctx.from.first_name });
 
     const { text, keyboard } = renderLobby(game);
     await ctx.editMessageText(text, keyboard);
-    await ctx.answerCbQuery("¡Te has unido a la partida!");
+    ctx.answerCbQuery();
   });
 
   bot.action('toggle_imp', async (ctx) => {
-    const chatId = ctx.chat?.id;
-    if (!chatId) return;
-    const game = activeGames.get(chatId);
-
-    if (!game) return;
-    if (game.hostId !== ctx.from.id) return ctx.answerCbQuery("❌ Solo el anfitrión puede configurar esto.", { show_alert: true });
-
+    const game = ctx.chat?.id ? activeGames.get(ctx.chat.id) : null;
+    if (!game || game.hostId !== ctx.from.id) return ctx.answerCbQuery("Solo anfitrión.");
     game.settings.impostors = game.settings.impostors >= 3 ? 1 : game.settings.impostors + 1;
     const { text, keyboard } = renderLobby(game);
     await ctx.editMessageText(text, keyboard);
   });
 
   bot.action('menu_cat', async (ctx) => {
-    const chatId = ctx.chat?.id;
-    if (!chatId) return;
-    const game = activeGames.get(chatId);
-
-    if (!game) return;
-    if (game.hostId !== ctx.from.id) return ctx.answerCbQuery("❌ Solo el anfitrión puede configurar esto.", { show_alert: true });
-
+    const game = ctx.chat?.id ? activeGames.get(ctx.chat.id) : null;
+    if (!game || game.hostId !== ctx.from.id) return ctx.answerCbQuery("Solo anfitrión.");
     const keyboard = Markup.inlineKeyboard([
       [Markup.button.callback('🦁 Animales', 'cat_Animales'), Markup.button.callback('💻 Tecnología', 'cat_Tecnología')],
       [Markup.button.callback('🍕 Comida', 'cat_Comida'), Markup.button.callback('👮 Profesiones', 'cat_Profesiones')],
       [Markup.button.callback('🎬 Cine y TV', 'cat_Cine y TV'), Markup.button.callback('🎲 Aleatorio', 'cat_Aleatorio')],
       [Markup.button.callback('🔙 Volver', 'back_lobby')]
     ]);
-    await ctx.editMessageText("📚 Selecciona la categoría para esta partida:", keyboard);
+    await ctx.editMessageText("📚 Categoría:", keyboard);
   });
 
   bot.action(/cat_(.+)/, async (ctx) => {
-    const chatId = ctx.chat?.id;
-    if (!chatId) return;
-    const game = activeGames.get(chatId);
-    if (!game) return;
-
-    game.settings.category = ctx.match[1];
-    const { text, keyboard } = renderLobby(game);
-    await ctx.editMessageText(text, keyboard);
+    const game = ctx.chat?.id ? activeGames.get(ctx.chat.id) : null;
+    if (game) {
+      game.settings.category = ctx.match[1];
+      const { text, keyboard } = renderLobby(game);
+      await ctx.editMessageText(text, keyboard);
+    }
   });
 
   bot.action('back_lobby', async (ctx) => {
-    const chatId = ctx.chat?.id;
-    if (!chatId) return;
-    const game = activeGames.get(chatId);
-    if (!game) return;
+    const game = ctx.chat?.id ? activeGames.get(ctx.chat.id) : null;
+    if (game) {
+      const { text, keyboard } = renderLobby(game);
+      await ctx.editMessageText(text, keyboard);
+    }
+  });
 
-    const { text, keyboard } = renderLobby(game);
-    await ctx.editMessageText(text, keyboard);
+  bot.action('cancel_game', async (ctx) => {
+    const game = ctx.chat?.id ? activeGames.get(ctx.chat.id) : null;
+    if (!game || game.hostId !== ctx.from.id) return ctx.answerCbQuery("Solo anfitrión.");
+    activeGames.delete(ctx.chat!.id);
+    await ctx.editMessageText("🛑 Partida cancelada.");
+    deleteAfter(ctx, ctx.callbackQuery.message!.message_id, 3000);
   });
 
   bot.action('start_game', async (ctx) => {
     const chatId = ctx.chat?.id;
-    if (!chatId) return;
-    const game = activeGames.get(chatId);
-
-    if (!game || game.state !== 'waiting') return;
-    if (game.hostId !== ctx.from.id) return ctx.answerCbQuery("❌ Solo el anfitrión puede arrancar el juego.", { show_alert: true });
-    
-    if (game.players.size < 2) return ctx.answerCbQuery("⚠️ Faltan jugadores. Mínimo 2.", { show_alert: true });
-    if (game.settings.impostors >= game.players.size) return ctx.answerCbQuery("⚠️ Hay demasiados impostores para tan pocos jugadores.", { show_alert: true });
+    const game = chatId ? activeGames.get(chatId) : null;
+    if (!game || game.hostId !== ctx.from.id) return;
+    if (game.players.size < 2) return ctx.answerCbQuery("Mínimo 2 jugadores.");
 
     game.state = 'playing';
-    
-    await ctx.editMessageText("🎲 Mezclando los roles en secreto...");
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    await ctx.editMessageText(`🤫 Buscando una palabra de la categoría: ${game.settings.category}...`);
-    
+    await ctx.editMessageText("🎲 Repartiendo roles...");
+
     const playersArray = Array.from(game.players);
     playersArray.sort(() => Math.random() - 0.5);
-    
     game.impostors = new Set(playersArray.slice(0, game.settings.impostors));
-    game.citizens = new Set(playersArray.slice(game.settings.impostors));
     
     let secretWord = "";
-    if (game.settings.category === 'Aleatorio') {
-      const allWords = Object.values(CATEGORIES).flat();
-      secretWord = allWords[Math.floor(Math.random() * allWords.length)];
-    } else {
-      const words = CATEGORIES[game.settings.category];
-      secretWord = words[Math.floor(Math.random() * words.length)];
-    }
+    const cat = game.settings.category === 'Aleatorio' ? Object.keys(CATEGORIES)[Math.floor(Math.random()*5)] : game.settings.category;
+    const words = CATEGORIES[cat];
+    secretWord = words[Math.floor(Math.random() * words.length)];
 
-    let failures = 0;
     for (const p of game.players) {
-      const isImpostor = game.impostors.has(p as number);
-      const text = isImpostor 
-        ? `Eres el IMPOSTOR 😈.\nLa categoría es: *${game.settings.category}*.\nIntenta adivinar la palabra secreta o pasa desapercibido.` 
-        : `Eres un CIUDADANO 👨‍💼.\nLa categoría es: *${game.settings.category}*\nLa palabra secreta es: *${secretWord}*`;
-      
-      try {
-        await bot.telegram.sendMessage(p as number, text, { parse_mode: 'Markdown' });
-      } catch (err) {
-        failures++;
-      }
+      const isImp = game.impostors.has(p as number);
+      const text = isImp ? `Eres IMPOSTOR 😈\nCategoría: ${cat}` : `Eres CIUDADANO 👨‍💼\nCategoría: ${cat}\nPalabra: ${secretWord}`;
+      bot.telegram.sendMessage(p as number, text).catch(() => {});
     }
 
-    if (failures > 0) {
-      await ctx.editMessageText(`⚠️ ATENCIÓN: ${failures} jugador(es) no le ha hablado al bot por privado. ¡Partida cancelada!`);
-      activeGames.delete(chatId);
-      setTimeout(() => { ctx.deleteMessage().catch(() => {}); }, 6000);
-      return;
-    }
-
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    await ctx.editMessageText("🕵️‍♂️ Despertando a los jugadores...");
-
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    const randomStarter = game.playerData.get(playersArray[Math.floor(Math.random() * playersArray.length)]);
-    
-    await ctx.editMessageText(
-      `🚨 ¡LA PARTIDA HA COMENZADO! 🚨\n\n📚 Categoría: ${game.settings.category}\n\nEmpieza el debate: ¡${randomStarter.name}, da la primera pista!\n\nCuando decidan al ganador, el anfitrión debe tocar una opción:`,
-      Markup.inlineKeyboard([
-        [Markup.button.callback('🏆 Ganaron Ciudadanos', 'win_cits')],
-        [Markup.button.callback('🏆 Ganaron Impostores', 'win_imp')]
-      ])
-    );
+    const starter = game.playerData.get(playersArray[Math.floor(Math.random() * playersArray.length)]).name;
+    await ctx.editMessageText(`🚨 ¡A JUGAR! 🚨\n\nCategoría: ${cat}\n\nEmpieza: ${starter}`, Markup.inlineKeyboard([
+      [Markup.button.callback('🏆 Ganaron Ciudadanos', 'win_cits')],
+      [Markup.button.callback('🏆 Ganaron Impostores', 'win_imp')]
+    ]));
   });
 
   bot.action(/win_(cits|imp)/, async (ctx) => {
     const chatId = ctx.chat?.id;
-    if (!chatId) return;
-    const game = activeGames.get(chatId);
-
-    if (!game || game.state !== 'playing') return;
-    if (game.hostId !== ctx.from.id) return ctx.answerCbQuery("❌ Solo el anfitrión puede finalizar la partida.", { show_alert: true });
+    const game = chatId ? activeGames.get(chatId) : null;
+    if (!game || game.hostId !== ctx.from.id) return;
 
     const winner = ctx.match[1] === 'cits' ? 'ciudadanos' : 'impostores';
-    let resultMessage = `🏆 ¡PARTIDA TERMINADA! 🏆\n\nGanaron los *${winner.toUpperCase()}* 🎉\n\n📊 REPARTO DE PUNTOS:\n`;
-    
-    for (const p of game.players) {
-      const pIdStr = p.toString();
-      const chatIdStr = chatId.toString(); // Cambio: Añadimos chatId
-      const isImpostor = game.impostors.has(p);
-      let pointsDelta = 0;
-      let roleEmoji = isImpostor ? '😈' : '👨‍💼';
-      
-      if (winner === 'impostores' && isImpostor) pointsDelta = 3;
-      else if (winner === 'ciudadanos' && !isImpostor) pointsDelta = 1;
+    let result = `🏆 ¡GANAN LOS ${winner.toUpperCase()}!\n\n📊 PUNTOS:\n`;
 
-      try {
-        // Cambio: Buscamos y creamos usando chatIdStr
-        let player = await storage.getPlayerByTelegramId(pIdStr, chatIdStr);
-        if (!player) {
-          player = await storage.createPlayer({
-            telegramId: pIdStr,
-            chatId: chatIdStr, // Cambio: Guardamos el grupo
-            username: game.playerData.get(p).name,
-            firstName: game.playerData.get(p).name,
-            points: 0,
-            gamesPlayed: 0
-          });
-        }
-        // Cambio: updatePlayerPoints ahora requiere chatIdStr
-        player = await storage.updatePlayerPoints(pIdStr, chatIdStr, pointsDelta);
-        
-        resultMessage += `${pointsDelta > 0 ? '+' : ''}${pointsDelta} pts ${roleEmoji} ${game.playerData.get(p).name} (Total: ${player.points})\n`;
-      } catch (e) {
-        console.error(e);
-      }
+    for (const p of game.players) {
+      const isImp = game.impostors.has(p);
+      let pts = (winner === 'impostores' && isImp) ? 3 : (winner === 'ciudadanos' && !isImp) ? 1 : 0;
+      const player = await storage.updatePlayerPoints(p.toString(), chatId!.toString(), pts);
+      result += `${pts > 0 ? '✅' : '❌'} ${game.playerData.get(p).name}: +${pts} (Total: ${player.points})\n`;
     }
 
-    activeGames.delete(chatId);
-
-    // BOTONES POST-PARTIDA (Circular) con URL dinámica del ranking
-    const endKeyboard = Markup.inlineKeyboard([
+    activeGames.delete(chatId!);
+    const keyboard = Markup.inlineKeyboard([
       [Markup.button.callback('🔄 Jugar de nuevo', 'play_again')],
       [
-        Markup.button.callback('👤 Mis Puntos', 'my_stats'), 
-        Markup.button.url('🌐 Ranking del Grupo', `https://impostor-game-hub.onrender.com/ranking/${chatId}`)
+        Markup.button.callback('👤 Mis Puntos', 'my_stats'),
+        Markup.button.callback('📊 Ranking Grupo', 'view_group_ranking')
       ]
     ]);
 
-    await ctx.editMessageText(resultMessage, { 
-      parse_mode: 'Markdown',
-      reply_markup: endKeyboard.reply_markup
-    });
+    await ctx.editMessageText(result, keyboard);
   });
 
-  bot.launch().then(() => { console.log("🚀 Telegram Bot started!"); });
-  process.once('SIGINT', () => bot.stop('SIGINT'));
-  process.once('SIGTERM', () => bot.stop('SIGTERM'));
-
-  return bot;
+  bot.launch().then(() => console.log("🚀 Bot listo!"));
 }
