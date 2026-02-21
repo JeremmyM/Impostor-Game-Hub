@@ -7,11 +7,11 @@ export interface IStorage {
   createPlayer(player: InsertPlayer): Promise<Player>;
   updatePlayerPoints(telegramId: string, chatId: string, points: number): Promise<Player>;
   getTopPlayers(limit: number): Promise<Player[]>;
-  getTopPlayersByChat(chatId: string, limit: number): Promise<Player[]>; // Nueva función
+  getTopPlayersByChat(chatId: string, limit: number): Promise<Player[]>;
+  resetChatStats(chatId: string): Promise<void>; // Nueva función para el botón
 }
 
 export class DatabaseStorage implements IStorage {
-  // Ahora buscamos por ID de usuario Y por ID de grupo
   async getPlayerByTelegramId(telegramId: string, chatId: string): Promise<Player | undefined> {
     const [player] = await db
       .select()
@@ -53,7 +53,6 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  // Ranking de toda la App (Global)
   async getTopPlayers(limit: number): Promise<Player[]> {
     return await db
       .select()
@@ -62,7 +61,6 @@ export class DatabaseStorage implements IStorage {
       .limit(limit);
   }
 
-  // Ranking específico de UN grupo
   async getTopPlayersByChat(chatId: string, limit: number): Promise<Player[]> {
     return await db
       .select()
@@ -70,6 +68,17 @@ export class DatabaseStorage implements IStorage {
       .where(eq(players.chatId, chatId))
       .orderBy(desc(players.points))
       .limit(limit);
+  }
+
+  // Lógica para reiniciar los puntos del grupo en la base de datos
+  async resetChatStats(chatId: string): Promise<void> {
+    await db
+      .update(players)
+      .set({
+        points: 0,
+        gamesPlayed: 0,
+      })
+      .where(eq(players.chatId, chatId));
   }
 }
 
