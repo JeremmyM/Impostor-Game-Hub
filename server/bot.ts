@@ -63,7 +63,6 @@ export function setupBot() {
     await ctx.reply(text, keyboard);
   });
 
-  // RANKING EN VENTANA EMERGENTE (Pop-up)
   bot.action('view_group_ranking', async (ctx) => {
     const chatId = ctx.chat?.id.toString();
     if (!chatId) return;
@@ -86,7 +85,6 @@ export function setupBot() {
     await ctx.answerCbQuery(`👤 ${ctx.from.first_name}\n🏆 Tus puntos: ${pts}`, { show_alert: true });
   });
 
-// REINICIAR PUNTOS (Lógica Real)
   bot.action('reset_group_points', async (ctx) => {
     const chatId = ctx.chat?.id;
     const game = chatId ? activeGames.get(chatId) : null;
@@ -97,17 +95,13 @@ export function setupBot() {
     }
 
     try {
-      // LLAMADA REAL AL STORAGE
       await storage.resetChatStats(chatId.toString());
-      
-      await ctx.answerCbQuery("✅ ¡Puntos del grupo reiniciados con éxito!", { show_alert: true });
-      
-      // Opcional: Actualizar el lobby para que todos vean el cambio si es necesario
+      await ctx.answerCbQuery("✅ ¡Puntos del grupo reiniciados!", { show_alert: true });
       const { text, keyboard } = renderLobby(game);
       await ctx.editMessageText(text, keyboard);
     } catch (e) {
       console.error(e);
-      await ctx.answerCbQuery("❌ Error al reiniciar los puntos.", { show_alert: true });
+      await ctx.answerCbQuery("❌ Error al reiniciar.", { show_alert: true });
     }
   });
 
@@ -135,6 +129,7 @@ export function setupBot() {
     const keyboard = Markup.inlineKeyboard([
       [Markup.button.callback('🦁 Animales', 'cat_Animales'), Markup.button.callback('💻 Tecnología', 'cat_Tecnología')],
       [Markup.button.callback('🍕 Comida', 'cat_Comida'), Markup.button.callback('🎬 Cine', 'cat_Cine y TV')],
+      [Markup.button.callback('🎲 Aleatorio', 'cat_Aleatorio')],
       [Markup.button.callback('🔙 Volver', 'back_lobby')]
     ]);
     await ctx.editMessageText("Selecciona categoría:", keyboard);
@@ -175,34 +170,66 @@ export function setupBot() {
     playersArray.sort(() => Math.random() - 0.5);
     game.impostors = new Set(playersArray.slice(0, game.settings.impostors));
     
-    const cat = game.settings.category === 'Aleatorio' ? 'Animales' : game.settings.category;
-    const words = CATEGORIES[cat];
+    // Mejor lógica de categoría aleatoria
+    let finalCat = game.settings.category;
+    if (finalCat === 'Aleatorio') {
+      const cats = Object.keys(CATEGORIES);
+      finalCat = cats[Math.floor(Math.random() * cats.length)];
+    }
+
+    const words = CATEGORIES[finalCat];
     const secretWord = words[Math.floor(Math.random() * words.length)];
 
     for (const p of game.players) {
       const isImp = game.impostors.has(p as number);
-      const text = isImp ? `Eres IMPOSTOR 😈\nCategoría: ${cat}` : `Eres CIUDADANO 👨‍💼\nCategoría: ${cat}\nPalabra: ${secretWord}`;
+      const text = isImp ? `Eres IMPOSTOR 😈\nCategoría: ${finalCat}` : `Eres CIUDADANO 👨‍💼\nCategoría: ${finalCat}\nPalabra: ${secretWord}`;
       bot.telegram.sendMessage(p as number, text).catch(() => {});
     }
 
     const starter = game.playerData.get(playersArray[Math.floor(Math.random() * playersArray.length)]).name;
-    await ctx.editMessageText(`🚨 ¡A JUGAR! 🚨\n\nCategoría: ${cat}\n\nEmpieza: ${starter}\n\nEl anfitrión debe marcar quién ganó:`, Markup.inlineKeyboard([
+    await ctx.editMessageText(`🚨 ¡A JUGAR! 🚨\n\nCategoría: ${finalCat}\n\nEmpieza: ${starter}\n\nEl anfitrión debe marcar quién ganó:`, Markup.inlineKeyboard([
       [Markup.button.callback('🏆 Ganaron Ciudadanos', 'win_cits')],
       [Markup.button.callback('🏆 Ganaron Impostores', 'win_imp')]
     ]));
   });
 
-  bot.action(/win_(cits|imp)/, async (ctx) => {
+  bot.action('play_again', async (ctx) => {
+    const chatId = ctx.chat?.id;
+    if (!chatId) return;
+    if (activeGames.has(chatId)) return ctx.answerCbQuery("Ya hay una sala.");
+
+    activeGames.set(chatId, {
+      hostId: ctx.from.id,
+      hostName: ctx.from.first_name,
+      state: 'waiting',
+      players: new Set<number>([ctx.from.id]),
+      playerData: new Map<number, { id: number, name: string }>(),
+      settings: { category: 'Aleatorio', impostors: 1 }
+    });
+    activeGames.get(chatId).playerData.set(ctx.from.id, { id: ctx.from.id, name: ctx.from.first_name });
+
+    const { text, keyboard } = renderLobby(activeGames.get(chatId));
+    await ctx.editMessageText(text, keyboard);
+  });
+
+  // CORREGIDO: Manejo de victoria simplificado para evitar errores de RegEx
+  bot.action(['win_cits', 'win_imp'], async (ctx) => {
     const chatId = ctx.chat?.id;
     const game = chatId ? activeGames.get(chatId) : null;
-    if (!game || game.hostId !== ctx.from.id) return;
+    
+    if (!game || game.state !== 'playing') return ctx.answerCbQuery("No hay partida activa.");
+    if (game.hostId !== ctx.from.id) return ctx.answerCbQuery("Solo el anfitrión puede finalizar.", { show_alert: true });
 
-    const winner = ctx.match[1] === 'cits' ? 'ciudadanos' : 'impostores';
+    const winner = ctx.callbackQuery.data === 'win_cits' ? 'ciudadanos' : 'impostores';
     let result = `🏆 ¡GANAN LOS ${winner.toUpperCase()}!\n\n📊 PUNTOS:\n`;
 
     for (const p of game.players) {
       const isImp = game.impostors.has(p);
-      let pts = (winner === 'impostores' && isImp) ? 3 : (winner === 'ciudadanos' && !isImp) ? 1 : 0;
+      let pts = 0;
+      if (winner === 'impostores' && isImp) pts = 3;
+      else if (winner === 'ciudadanos' && !isImp) pts = 1;
+
+      // Actualizar DB
       const player = await storage.updatePlayerPoints(p.toString(), chatId!.toString(), pts);
       result += `${pts > 0 ? '✅' : '❌'} ${game.playerData.get(p).name}: +${pts} (Total: ${player.points})\n`;
     }
