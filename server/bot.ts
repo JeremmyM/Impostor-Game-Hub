@@ -41,7 +41,9 @@ const renderLobby = (game: any) => {
     [
       Markup.button.callback('🚀 Arrancar', 'start_game'),
       Markup.button.callback('🛑 Cancelar', 'cancel_game')
-    ]
+    ],
+    // RESTAURADO: Botón de reiniciar puntos
+    [Markup.button.callback('♻️ Reiniciar Puntos del Grupo', 'reset_group_points')]
   ]);
   return { text, keyboard };
 };
@@ -76,6 +78,55 @@ export function setupBot() {
     await ctx.replyWithMarkdown(text, keyboard);
   });
 
+  // --- RESTAURADO: ACCIONES DE RANKING Y PUNTOS ---
+  bot.action('view_group_ranking', async (ctx) => {
+    const chatId = ctx.chat?.id.toString();
+    if (!chatId) return;
+    const top = await storage.getTopPlayersByChat(chatId, 10);
+    if (top.length === 0) return ctx.answerCbQuery("Aún no hay puntos en este grupo.", { show_alert: true });
+
+    let msg = "🏆 TOP 10 RANKING 🏆\n\n";
+    top.forEach((p, i) => { msg += `${i + 1}. ${p.firstName} - ${p.points} pts\n`; });
+
+    await ctx.answerCbQuery(msg, { show_alert: true });
+  });
+
+  bot.action('my_stats', async (ctx) => {
+    const chatId = ctx.chat?.id.toString();
+    if (!chatId) return;
+    const player = await storage.getPlayerByTelegramId(ctx.from.id.toString(), chatId);
+    const pts = player ? player.points : 0;
+    await ctx.answerCbQuery(`👤 ${ctx.from.first_name}\n🏆 Tus puntos en este grupo: ${pts}`, { show_alert: true });
+  });
+
+  bot.action('reset_group_points', async (ctx) => {
+    const chatId = ctx.chat?.id;
+    const game = chatId ? activeGames.get(chatId) : null;
+    
+    if (!game) return ctx.answerCbQuery("❌ Debes abrir una sala con /iniciar para gestionar los puntos.");
+    if (game.hostId !== ctx.from.id) return ctx.answerCbQuery("❌ Solo el anfitrión puede reiniciar los puntos.", { show_alert: true });
+
+    try {
+      await storage.resetChatStats(chatId!.toString());
+      await ctx.answerCbQuery("✅ ¡Puntos del grupo reseteados!", { show_alert: true });
+      const { text, keyboard } = renderLobby(game);
+      await ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard }).catch(() => {});
+    } catch (e) {
+      await ctx.answerCbQuery("❌ Error al acceder a la base de datos.");
+    }
+  });
+
+  // --- RESTAURADO: CANCELAR PARTIDA ---
+  bot.action('cancel_game', async (ctx) => {
+    const game = activeGames.get(ctx.chat!.id);
+    if (!game || game.hostId !== ctx.from.id) return ctx.answerCbQuery("Solo el anfitrión.");
+    
+    activeGames.delete(ctx.chat!.id);
+    await ctx.answerCbQuery("Partida cancelada");
+    await ctx.editMessageText("🛑 *Partida cancelada por el anfitrión.*", { parse_mode: 'Markdown' });
+  });
+
+  // --- CATEGORÍAS Y CONFIGURACIÓN ---
   bot.action('menu_cat', async (ctx) => {
     const game = activeGames.get(ctx.chat!.id);
     if (!game || game.hostId !== ctx.from.id) return ctx.answerCbQuery("Solo anfitrión.");
@@ -181,6 +232,9 @@ export function setupBot() {
     const game = activeGames.get(chatId);
     if (!game || game.hostId !== ctx.from.id) return ctx.answerCbQuery("Solo el host.");
 
+    // Informamos al servidor para que quite el relojito de carga
+    await ctx.answerCbQuery("Calculando resultados...");
+
     const winner = ctx.callbackQuery.data === 'win_cits' ? 'ciudadanos' : 'impostores';
     let result = `🏆 *¡GANAN LOS ${winner.toUpperCase()}!* 🏆\n\n📊 *PUNTOS:*\n`;
 
@@ -190,6 +244,7 @@ export function setupBot() {
         let pts = (winner === 'impostores' && isImp) ? 3 : (winner === 'ciudadanos' && !isImp) ? 1 : 0;
         const name = game.playerData.get(p as number)?.name || "Jugador";
         const player = await storage.updatePlayerPoints(p.toString(), chatId.toString(), pts, name);
+        // Utilizando tu color azul corporativo indirectamente a través del emoji
         return `${pts > 0 ? '🔵' : '⚪️'} ${name}: +${pts} (Total: ${player.points})\n`;
     });
 
@@ -201,13 +256,28 @@ export function setupBot() {
   bot.action('play_again', async (ctx) => {
     const chatId = ctx.chat!.id;
     activeGames.delete(chatId);
-    // @ts-ignore
-    return bot.handleUpdate({ ...ctx.update, message: { ...ctx.update.callback_query.message, text: '/iniciar', entities: [{ type: 'bot_command', offset: 0, length: 8 }] } }); 
+    
+    // Solución más estable para reiniciar el juego sin simular comandos complejos
+    await ctx.answerCbQuery();
+    
+    activeGames.set(chatId, {
+      hostId: ctx.from.id,
+      hostName: ctx.from.first_name,
+      state: 'waiting',
+      players: new Set<number>([ctx.from.id]),
+      playerData: new Map<number, { id: number, name: string }>(),
+      settings: { category: 'Aleatorio', impostors: 1 }
+    });
+    activeGames.get(chatId).playerData.set(ctx.from.id, { id: ctx.from.id, name: ctx.from.first_name });
+
+    const { text, keyboard } = renderLobby(activeGames.get(chatId));
+    await ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard });
   });
 
   bot.launch().then(() => console.log("🚀 BOT ONLINE"));
 
-  const URL_DE_TU_APP = "https://tu-proyecto.onrender.com"; // ⚠️ CAMBIA ESTO
+  // ⚠️ RECUERDA CAMBIAR ESTA URL POR LA DE TU RENDER
+  const URL_DE_TU_APP = "https://tu-proyecto.onrender.com"; 
   setInterval(() => {
     fetch(URL_DE_TU_APP).catch(() => {});
   }, 10 * 60 * 1000);
