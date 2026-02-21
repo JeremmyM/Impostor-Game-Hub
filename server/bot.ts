@@ -305,7 +305,7 @@ export function setupBot() {
     await ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard });
   });
 
-  bot.action('cancel_game', async (ctx) => {
+bot.action('cancel_game', async (ctx) => {
     const chatId = ctx.chat?.id;
     const game = chatId ? activeGames.get(chatId) : null;
     if (!game || game.hostId !== ctx.from.id) return ctx.answerCbQuery("Solo el anfitrión.");
@@ -319,6 +319,16 @@ export function setupBot() {
     console.log("🚀 BOT DE IMPOSTOR ONLINE");
     console.log("-------------------------------");
   });
+
+  // --- PEGA ESTO AQUÍ (SISTEMA ANTI-SUEÑO) ---
+  const URL_DE_TU_APP = "https://tu-proyecto.onrender.com"; // ⚠️ REEMPLAZA CON TU URL REAL DE RENDER
+
+  setInterval(() => {
+    fetch(URL_DE_TU_APP)
+      .then(() => console.log("⏰ Autoping: Bot despierto"))
+      .catch(err => console.log("Aviso: Autoping realizado (ignorar si no hay servidor web)"));
+  }, 10 * 60 * 1000); // Cada 10 minutos
+  // -------------------------------------------
 
   // Parada graciosa
   process.once('SIGINT', () => bot.stop('SIGINT'));
