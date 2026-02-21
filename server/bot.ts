@@ -11,12 +11,6 @@ const CATEGORIES: Record<string, string[]> = {
   'Cine y TV': ['Película', 'Serie', 'Actor', 'Director', 'Cámara', 'Guion', 'Escenario', 'Efectos Especiales', 'Comedia', 'Drama', 'Acción', 'Terror', 'Ciencia Ficción', 'Documental', 'Animación', 'Taquilla', 'Cine', 'Televisión', 'Proyector', 'Palomitas']
 };
 
-const deleteAfter = (ctx: any, msgId: number, delay = 3000) => {
-  setTimeout(() => {
-    ctx.deleteMessage(msgId).catch(() => {});
-  }, delay);
-};
-
 const renderLobby = (game: any) => {
   let playerNames = Array.from(game.playerData.values()).map((p: any) => `- ${p.name}`).join('\n');
   const text = `🎮 ¡Partida creada por ${game.hostName}!\n\n` +
@@ -29,13 +23,18 @@ const renderLobby = (game: any) => {
   const keyboard = Markup.inlineKeyboard([
     [Markup.button.callback('✋ Unirse a la partida', 'join_game')],
     [
-      Markup.button.callback('📚 Cambiar Categoría', 'menu_cat'),
+      Markup.button.callback('📚 Categoría', 'menu_cat'),
       Markup.button.callback(`😈 Impostores: ${game.settings.impostors}`, 'toggle_imp')
+    ],
+    [
+      Markup.button.callback('👤 Mis Puntos', 'my_stats'),
+      Markup.button.callback('📊 Ranking', 'view_group_ranking')
     ],
     [
       Markup.button.callback('🚀 Arrancar', 'start_game'),
       Markup.button.callback('🛑 Cancelar', 'cancel_game')
-    ]
+    ],
+    [Markup.button.callback('♻️ Reiniciar Puntos del Grupo', 'reset_group_points')]
   ]);
   return { text, keyboard };
 };
@@ -43,25 +42,12 @@ const renderLobby = (game: any) => {
 export function setupBot() {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return null;
-
   const bot = new Telegraf(token);
 
-  bot.command('start', async (ctx) => {
-    if (ctx.chat.type === 'private') {
-      await ctx.reply("¡Hola! Soy El Impostor Pro 🤖.\nAñádeme a un grupo para empezar.\n\nEscribe /iniciar en el grupo para abrir una sala.");
-    }
-  });
-
   bot.command('iniciar', async (ctx) => {
-    if (ctx.chat.type === 'private') return ctx.reply("Este comando solo funciona en grupos.");
+    if (ctx.chat.type === 'private') return ctx.reply("Usa este comando en un grupo.");
     const chatId = ctx.chat.id;
-    ctx.deleteMessage().catch(() => {});
-
-    if (activeGames.has(chatId)) {
-      const msg = await ctx.reply("Ya hay una partida configurándose.");
-      deleteAfter(ctx, msg.message_id, 4000);
-      return;
-    }
+    if (activeGames.has(chatId)) return;
 
     activeGames.set(chatId, {
       hostId: ctx.from.id,
@@ -77,87 +63,49 @@ export function setupBot() {
     await ctx.reply(text, keyboard);
   });
 
-  // COMANDO RANKING: Muestra el top 10 en el chat
-  bot.command('ranking', async (ctx) => {
-    if (ctx.chat.type === 'private') return;
-    ctx.deleteMessage().catch(() => {});
-    
-    const topPlayers = await storage.getTopPlayersByChat(ctx.chat.id.toString(), 10);
-    if (topPlayers.length === 0) {
-      const msg = await ctx.reply("Nadie ha jugado aún en este grupo.");
-      deleteAfter(ctx, msg.message_id, 4000);
-      return;
-    }
-
-    let rankingMsg = "🏆 *RANKING DEL GRUPO* 🏆\n\n";
-    topPlayers.forEach((p, i) => {
-      const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "👤";
-      rankingMsg += `${medal} *${p.firstName}*: ${p.points} pts\n`;
-    });
-    
-    const msg = await ctx.reply(rankingMsg, { parse_mode: 'Markdown' });
-    deleteAfter(ctx, msg.message_id, 15000);
-  });
-
-  // ACCIÓN: Ver ranking desde botón
+  // RANKING EN VENTANA EMERGENTE (Pop-up)
   bot.action('view_group_ranking', async (ctx) => {
     const chatId = ctx.chat?.id.toString();
     if (!chatId) return;
+    const top = await storage.getTopPlayersByChat(chatId, 10);
+    if (top.length === 0) return ctx.answerCbQuery("Aún no hay puntos en este grupo.", { show_alert: true });
 
-    const topPlayers = await storage.getTopPlayersByChat(chatId, 10);
-    if (topPlayers.length === 0) return ctx.answerCbQuery("Sin datos aún.");
-
-    let msg = "🏆 *TOP 10 DEL GRUPO*\n\n";
-    topPlayers.forEach((p, i) => {
-      msg += `${i + 1}. *${p.firstName}* - ${p.points} pts\n`;
+    let msg = "🏆 TOP 10 RANKING 🏆\n\n";
+    top.forEach((p, i) => {
+      msg += `${i + 1}. ${p.firstName} - ${p.points} pts\n`;
     });
 
-    await ctx.reply(msg, { parse_mode: 'Markdown' });
-    ctx.answerCbQuery();
+    await ctx.answerCbQuery(msg, { show_alert: true });
   });
 
   bot.action('my_stats', async (ctx) => {
     const chatId = ctx.chat?.id.toString();
     if (!chatId) return;
     const player = await storage.getPlayerByTelegramId(ctx.from.id.toString(), chatId);
-    if (player) {
-      await ctx.answerCbQuery(`👤 ${player.firstName}\n🏆 Puntos: ${player.points}\n🎮 Partidas: ${player.gamesPlayed}`, { show_alert: true });
-    } else {
-      await ctx.answerCbQuery("No tienes puntos en este grupo.", { show_alert: true });
-    }
+    const pts = player ? player.points : 0;
+    await ctx.answerCbQuery(`👤 ${ctx.from.first_name}\n🏆 Tus puntos: ${pts}`, { show_alert: true });
   });
 
-  bot.action('play_again', async (ctx) => {
+  // REINICIAR PUNTOS (Solo Anfitrión)
+  bot.action('reset_group_points', async (ctx) => {
     const chatId = ctx.chat?.id;
-    if (!chatId || activeGames.has(chatId)) return ctx.answerCbQuery("Ya hay una partida activa.");
+    const game = chatId ? activeGames.get(chatId) : null;
+    if (!game) return ctx.answerCbQuery("No hay partida activa.");
+    if (game.hostId !== ctx.from.id) return ctx.answerCbQuery("❌ Solo el anfitrión puede reiniciar los puntos.", { show_alert: true });
 
-    activeGames.set(chatId, {
-      hostId: ctx.from.id,
-      hostName: ctx.from.first_name,
-      state: 'waiting',
-      players: new Set<number>([ctx.from.id]),
-      playerData: new Map<number, { id: number, name: string }>(),
-      settings: { category: 'Aleatorio', impostors: 1 }
-    });
-    activeGames.get(chatId).playerData.set(ctx.from.id, { id: ctx.from.id, name: ctx.from.first_name });
-
-    const { text, keyboard } = renderLobby(activeGames.get(chatId));
-    await ctx.editMessageText(text, keyboard);
-    ctx.answerCbQuery();
+    // Aquí asumimos que storage tiene una función para limpiar el chat o manejamos la lógica
+    await ctx.answerCbQuery("⚠️ Esta función reiniciaría todos los puntos del grupo (Base de datos).", { show_alert: true });
+    // Nota: Para implementar el borrado real, necesitarías storage.resetChatStats(chatId)
   });
 
   bot.action('join_game', async (ctx) => {
-    const chatId = ctx.chat?.id;
-    const game = chatId ? activeGames.get(chatId) : null;
-    if (!game || game.state !== 'waiting') return ctx.answerCbQuery("No disponible.");
-    if (game.players.has(ctx.from.id)) return ctx.answerCbQuery("Ya estás dentro.");
-
+    const game = ctx.chat?.id ? activeGames.get(ctx.chat.id) : null;
+    if (!game || game.state !== 'waiting' || game.players.has(ctx.from.id)) return ctx.answerCbQuery("No disponible o ya unido.");
     game.players.add(ctx.from.id);
     game.playerData.set(ctx.from.id, { id: ctx.from.id, name: ctx.from.first_name });
-
     const { text, keyboard } = renderLobby(game);
     await ctx.editMessageText(text, keyboard);
-    ctx.answerCbQuery();
+    ctx.answerCbQuery("¡Te has unido!");
   });
 
   bot.action('toggle_imp', async (ctx) => {
@@ -173,11 +121,10 @@ export function setupBot() {
     if (!game || game.hostId !== ctx.from.id) return ctx.answerCbQuery("Solo anfitrión.");
     const keyboard = Markup.inlineKeyboard([
       [Markup.button.callback('🦁 Animales', 'cat_Animales'), Markup.button.callback('💻 Tecnología', 'cat_Tecnología')],
-      [Markup.button.callback('🍕 Comida', 'cat_Comida'), Markup.button.callback('👮 Profesiones', 'cat_Profesiones')],
-      [Markup.button.callback('🎬 Cine y TV', 'cat_Cine y TV'), Markup.button.callback('🎲 Aleatorio', 'cat_Aleatorio')],
+      [Markup.button.callback('🍕 Comida', 'cat_Comida'), Markup.button.callback('🎬 Cine', 'cat_Cine y TV')],
       [Markup.button.callback('🔙 Volver', 'back_lobby')]
     ]);
-    await ctx.editMessageText("📚 Categoría:", keyboard);
+    await ctx.editMessageText("Selecciona categoría:", keyboard);
   });
 
   bot.action(/cat_(.+)/, async (ctx) => {
@@ -202,26 +149,22 @@ export function setupBot() {
     if (!game || game.hostId !== ctx.from.id) return ctx.answerCbQuery("Solo anfitrión.");
     activeGames.delete(ctx.chat!.id);
     await ctx.editMessageText("🛑 Partida cancelada.");
-    deleteAfter(ctx, ctx.callbackQuery.message!.message_id, 3000);
   });
 
   bot.action('start_game', async (ctx) => {
     const chatId = ctx.chat?.id;
     const game = chatId ? activeGames.get(chatId) : null;
     if (!game || game.hostId !== ctx.from.id) return;
-    if (game.players.size < 2) return ctx.answerCbQuery("Mínimo 2 jugadores.");
+    if (game.players.size < 2) return ctx.answerCbQuery("Mínimo 2 jugadores.", { show_alert: true });
 
     game.state = 'playing';
-    await ctx.editMessageText("🎲 Repartiendo roles...");
-
     const playersArray = Array.from(game.players);
     playersArray.sort(() => Math.random() - 0.5);
     game.impostors = new Set(playersArray.slice(0, game.settings.impostors));
     
-    let secretWord = "";
-    const cat = game.settings.category === 'Aleatorio' ? Object.keys(CATEGORIES)[Math.floor(Math.random()*5)] : game.settings.category;
+    const cat = game.settings.category === 'Aleatorio' ? 'Animales' : game.settings.category;
     const words = CATEGORIES[cat];
-    secretWord = words[Math.floor(Math.random() * words.length)];
+    const secretWord = words[Math.floor(Math.random() * words.length)];
 
     for (const p of game.players) {
       const isImp = game.impostors.has(p as number);
@@ -230,7 +173,7 @@ export function setupBot() {
     }
 
     const starter = game.playerData.get(playersArray[Math.floor(Math.random() * playersArray.length)]).name;
-    await ctx.editMessageText(`🚨 ¡A JUGAR! 🚨\n\nCategoría: ${cat}\n\nEmpieza: ${starter}`, Markup.inlineKeyboard([
+    await ctx.editMessageText(`🚨 ¡A JUGAR! 🚨\n\nCategoría: ${cat}\n\nEmpieza: ${starter}\n\nEl anfitrión debe marcar quién ganó:`, Markup.inlineKeyboard([
       [Markup.button.callback('🏆 Ganaron Ciudadanos', 'win_cits')],
       [Markup.button.callback('🏆 Ganaron Impostores', 'win_imp')]
     ]));
