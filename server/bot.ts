@@ -5,13 +5,19 @@ const activeGames = new Map<number, any>();
 
 // --- CATEGORÍAS ACTUALIZADAS ---
 const CATEGORIES: Record<string, string[]> = {
-  'Personas 👤': ['Messi', 'Cristiano Ronaldo', 'Elon Musk', 'Gheo', 'Nico', 'Ramirin', 'Presi', 'Shakira', 'Bad Bunny', 'Ibai Llanos', 'Michael Jackson', 'MrBeast', 'Tu ex'],
-  'Películas 🎬': ['Titanic', 'Avatar', 'Star Wars', 'Harry Potter', 'El Rey León', 'Jurassic Park', 'Toy Story', 'Shrek', 'Batman', 'Spider-Man', 'Avengers', 'Coco', 'Joker'],
+  'Personas 👤': [
+    'Gheo', 'Nico', 'Ramirin', 'Presi', 
+    'Messi', 'Cristiano Ronaldo', 'Elon Musk', 'Shakira', 'Bad Bunny', 'Ibai Llanos', 'Michael Jackson', 'MrBeast', 
+    'AuronPlay', 'El Rubius', 'Luisito Comunica', 'Bizarrap', 'Daddy Yankee', 'Freddie Mercury', 'Eminem', 'Justin Bieber', 'Rosalía',
+    'The Rock', 'Will Smith', 'Jackie Chan', 'Leonardo DiCaprio', 'Johnny Depp', 'Tom Cruise', 'Keanu Reeves', 'Taylor Swift', 'Zendaya',
+    'Albert Einstein', 'Mark Zuckerberg', 'Steve Jobs', 'El Papa Francisco',
+    'Maradona', 'Mike Tyson', 'Canelo Álvarez', 'Michael Jordan'
+  ],
+  'Películas 🎬': ['Titanic', 'Avatar', 'Star Wars', 'Harry Potter', 'El Rey León', 'Jurassic Park', 'Toy Story', 'Shrek', 'Batman', 'Spider-Man', 'Avengers', 'Coco', 'Joker', 'Matrix', 'Buscando a Nemo', 'Volver al Futuro', 'Terminator', 'Up', 'Mi Pobre Angelito', 'E.T.', 'Intensamente', 'El Señor de los Anillos', 'Forrest Gump', 'Monsters Inc'],  
   'Personajes 🦸‍♂️': ['Homero Simpson', 'Pikachu', 'Superman', 'Mickey Mouse', 'Darth Vader', 'Bob Esponja', 'Goku', 'Mario Bros', 'Barbie', 'Iron Man'],
-  'Teorías 🧠': ['Relatividad', 'Evolución', 'Big Bang', 'Gravedad', 'Agujero Negro', 'ADN', 'Selección Natural', 'Efecto Mandela'],
-  'Videojuegos 🎮': ['Minecraft', 'Roblox', 'Fortnite', 'FIFA', 'Grand Theft Auto', 'League of Legends', 'Among Us', 'Free Fire', 'Pac-Man'],
-  'Animales 🦁': ['León', 'Elefante', 'Tigre', 'Jirafa', 'Delfín', 'Pingüino', 'Oso', 'Lobo', 'Tiburón', 'Cocodrilo'],
-  'Lugares 🌎': ['París', 'Nueva York', 'Egipto', 'Roma', 'Japón', 'Amazonas', 'China', 'México', 'España'],
+  'Teorías 🧠': ['Relatividad', 'Evolución', 'Big Bang', 'Teoría de Cuerdas', 'Efecto Mandela', 'Efecto Mariposa', 'Gato de Schrödinger', 'Multiverso', 'Tierra Plana', 'Panspermia'],  
+  'Animales 🦁': ['León', 'Elefante', 'Tigre', 'Jirafa', 'Delfín', 'Pingüino', 'Oso', 'Lobo', 'Tiburón', 'Cocodrilo', 'Perezoso', 'Avestruz', 'Canguro', 'Camaleón', 'Ornitorrinco', 'Zorrillo', 'Llama', 'Mapache', 'Mono', 'Cerdo', 'Gallina', 'Hiena', 'Burro', 'Pulpo', 'Camello'],  
+  'Lugares 🌎': ['París', 'Nueva York', 'Roma', 'Las Vegas', 'Área 51', 'Chernobyl', 'Polo Norte', 'Venecia', 'El Vaticano', 'Dubai', 'Hawái', 'Machu Picchu', 'Hollywood', 'Transilvania', 'Australia', 'Egipto', 'Amazonas'],  
   'Random 🎲': ['Inodoro', 'Dentífrico', 'Control Remoto', 'Media sucia', 'Cuchara', 'Papel Higiénico', 'Semáforo', 'Paraguas']
 };
 
