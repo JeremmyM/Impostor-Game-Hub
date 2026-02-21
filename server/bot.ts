@@ -5,7 +5,7 @@ const activeGames = new Map<number, any>();
 
 // --- CATEGORÍAS ACTUALIZADAS ---
 const CATEGORIES: Record<string, string[]> = {
-  'Amigos 👥': ['Gheo', 'Nico', 'Ramirin', 'Presi', 'El Impostor', 'El más manco', 'El que siempre miente'],
+  'Personas 👤': ['Messi', 'Cristiano Ronaldo', 'Elon Musk', 'Gheo', 'Nico', 'Ramirin', 'Presi', 'Shakira', 'Bad Bunny', 'Ibai Llanos', 'Michael Jackson', 'MrBeast', 'Tu ex'],
   'Películas 🎬': ['Titanic', 'Avatar', 'Star Wars', 'Harry Potter', 'El Rey León', 'Jurassic Park', 'Toy Story', 'Shrek', 'Batman', 'Spider-Man', 'Avengers', 'Coco', 'Joker'],
   'Personajes 🦸‍♂️': ['Homero Simpson', 'Pikachu', 'Superman', 'Mickey Mouse', 'Darth Vader', 'Bob Esponja', 'Goku', 'Mario Bros', 'Barbie', 'Iron Man'],
   'Teorías 🧠': ['Relatividad', 'Evolución', 'Big Bang', 'Gravedad', 'Agujero Negro', 'ADN', 'Selección Natural', 'Efecto Mandela'],
@@ -42,7 +42,6 @@ const renderLobby = (game: any) => {
       Markup.button.callback('🚀 Arrancar', 'start_game'),
       Markup.button.callback('🛑 Cancelar', 'cancel_game')
     ],
-    // RESTAURADO: Botón de reiniciar puntos
     [Markup.button.callback('♻️ Reiniciar Puntos del Grupo', 'reset_group_points')]
   ]);
   return { text, keyboard };
@@ -78,7 +77,6 @@ export function setupBot() {
     await ctx.replyWithMarkdown(text, keyboard);
   });
 
-  // --- RESTAURADO: ACCIONES DE RANKING Y PUNTOS ---
   bot.action('view_group_ranking', async (ctx) => {
     const chatId = ctx.chat?.id.toString();
     if (!chatId) return;
@@ -116,7 +114,6 @@ export function setupBot() {
     }
   });
 
-  // --- RESTAURADO: CANCELAR PARTIDA ---
   bot.action('cancel_game', async (ctx) => {
     const game = activeGames.get(ctx.chat!.id);
     if (!game || game.hostId !== ctx.from.id) return ctx.answerCbQuery("Solo el anfitrión.");
@@ -126,13 +123,12 @@ export function setupBot() {
     await ctx.editMessageText("🛑 *Partida cancelada por el anfitrión.*", { parse_mode: 'Markdown' });
   });
 
-  // --- CATEGORÍAS Y CONFIGURACIÓN ---
   bot.action('menu_cat', async (ctx) => {
     const game = activeGames.get(ctx.chat!.id);
     if (!game || game.hostId !== ctx.from.id) return ctx.answerCbQuery("Solo anfitrión.");
     
     const keyboard = Markup.inlineKeyboard([
-      [Markup.button.callback('👥 Amigos', 'cat_Amigos 👥'), Markup.button.callback('🎬 Películas', 'cat_Películas 🎬')],
+      [Markup.button.callback('👤 Personas', 'cat_Personas 👤'), Markup.button.callback('🎬 Películas', 'cat_Películas 🎬')],
       [Markup.button.callback('🦸‍♂️ Personajes', 'cat_Personajes 🦸‍♂️'), Markup.button.callback('🧠 Teorías', 'cat_Teorías 🧠')],
       [Markup.button.callback('🎮 Juegos', 'cat_Videojuegos 🎮'), Markup.button.callback('🦁 Animales', 'cat_Animales 🦁')],
       [Markup.button.callback('🌎 Lugares', 'cat_Lugares 🌎'), Markup.button.callback('🎲 Random', 'cat_Random 🎲')],
@@ -232,7 +228,6 @@ export function setupBot() {
     const game = activeGames.get(chatId);
     if (!game || game.hostId !== ctx.from.id) return ctx.answerCbQuery("Solo el host.");
 
-    // Informamos al servidor para que quite el relojito de carga
     await ctx.answerCbQuery("Calculando resultados...");
 
     const winner = ctx.callbackQuery.data === 'win_cits' ? 'ciudadanos' : 'impostores';
@@ -244,7 +239,7 @@ export function setupBot() {
         let pts = (winner === 'impostores' && isImp) ? 3 : (winner === 'ciudadanos' && !isImp) ? 1 : 0;
         const name = game.playerData.get(p as number)?.name || "Jugador";
         const player = await storage.updatePlayerPoints(p.toString(), chatId.toString(), pts, name);
-        // Utilizando tu color azul corporativo indirectamente a través del emoji
+        // Marcador con círculo azul
         return `${pts > 0 ? '🔵' : '⚪️'} ${name}: +${pts} (Total: ${player.points})\n`;
     });
 
@@ -257,7 +252,6 @@ export function setupBot() {
     const chatId = ctx.chat!.id;
     activeGames.delete(chatId);
     
-    // Solución más estable para reiniciar el juego sin simular comandos complejos
     await ctx.answerCbQuery();
     
     activeGames.set(chatId, {
@@ -276,7 +270,7 @@ export function setupBot() {
 
   bot.launch().then(() => console.log("🚀 BOT ONLINE"));
 
-  // ⚠️ RECUERDA CAMBIAR ESTA URL POR LA DE TU RENDER
+  // ⚠️ CAMBIA ESTO POR TU URL DE RENDER PARA QUE NO SE DUERMA
   const URL_DE_TU_APP = "https://tu-proyecto.onrender.com"; 
   setInterval(() => {
     fetch(URL_DE_TU_APP).catch(() => {});
