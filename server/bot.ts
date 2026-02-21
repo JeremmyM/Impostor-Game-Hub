@@ -13,8 +13,8 @@ const CATEGORIES: Record<string, string[]> = {
 
 const renderLobby = (game: any) => {
   let playerNames = Array.from(game.playerData.values()).map((p: any) => `- ${p.name}`).join('\n');
-  const text = `🎮 ¡Partida creada por ${game.hostName}!\n\n` +
-               `⚙️ CONFIGURACIÓN:\n` +
+  const text = `🎮 *¡Partida creada por ${game.hostName}!* \n\n` +
+               `⚙️ *CONFIGURACIÓN:*\n` +
                `📚 Categoría: ${game.settings.category}\n` +
                `😈 Impostores: ${game.settings.impostors}\n\n` +
                `👥 JUGADORES (${game.players.size}):\n${playerNames}\n\n` +
@@ -44,6 +44,7 @@ export function setupBot() {
   if (!token) return null;
   const bot = new Telegraf(token);
 
+  // --- COMANDOS ---
   bot.command('iniciar', async (ctx) => {
     if (ctx.chat.type === 'private') return ctx.reply("Usa este comando en un grupo.");
     const chatId = ctx.chat.id;
@@ -60,9 +61,10 @@ export function setupBot() {
     activeGames.get(chatId).playerData.set(ctx.from.id, { id: ctx.from.id, name: ctx.from.first_name });
 
     const { text, keyboard } = renderLobby(activeGames.get(chatId));
-    await ctx.reply(text, keyboard);
+    await ctx.replyWithMarkdown(text, keyboard);
   });
 
+  // --- RANKING Y ESTADÍSTICAS ---
   bot.action('view_group_ranking', async (ctx) => {
     const chatId = ctx.chat?.id.toString();
     if (!chatId) return;
@@ -70,9 +72,7 @@ export function setupBot() {
     if (top.length === 0) return ctx.answerCbQuery("Aún no hay puntos en este grupo.", { show_alert: true });
 
     let msg = "🏆 TOP 10 RANKING 🏆\n\n";
-    top.forEach((p, i) => {
-      msg += `${i + 1}. ${p.firstName} - ${p.points} pts\n`;
-    });
+    top.forEach((p, i) => { msg += `${i + 1}. ${p.firstName} - ${p.points} pts\n`; });
 
     await ctx.answerCbQuery(msg, { show_alert: true });
   });
@@ -85,33 +85,33 @@ export function setupBot() {
     await ctx.answerCbQuery(`👤 ${ctx.from.first_name}\n🏆 Tus puntos: ${pts}`, { show_alert: true });
   });
 
+  // --- GESTIÓN DE SALA ---
   bot.action('reset_group_points', async (ctx) => {
     const chatId = ctx.chat?.id;
     const game = chatId ? activeGames.get(chatId) : null;
-    
-    if (!game) return ctx.answerCbQuery("No hay partida activa.");
-    if (game.hostId !== ctx.from.id) {
-      return ctx.answerCbQuery("❌ Solo el anfitrión puede reiniciar los puntos.", { show_alert: true });
-    }
+    if (!game) return ctx.answerCbQuery("Inicia una partida para gestionar el grupo.");
+    if (game.hostId !== ctx.from.id) return ctx.answerCbQuery("❌ Solo el anfitrión puede reiniciar.", { show_alert: true });
 
     try {
       await storage.resetChatStats(chatId.toString());
-      await ctx.answerCbQuery("✅ ¡Puntos del grupo reiniciados!", { show_alert: true });
+      await ctx.answerCbQuery("✅ Puntos reiniciados con éxito.", { show_alert: true });
       const { text, keyboard } = renderLobby(game);
-      await ctx.editMessageText(text, keyboard);
+      await ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard });
     } catch (e) {
-      console.error(e);
-      await ctx.answerCbQuery("❌ Error al reiniciar.", { show_alert: true });
+      await ctx.answerCbQuery("❌ Error en la base de datos.");
     }
   });
 
   bot.action('join_game', async (ctx) => {
     const game = ctx.chat?.id ? activeGames.get(ctx.chat.id) : null;
-    if (!game || game.state !== 'waiting' || game.players.has(ctx.from.id)) return ctx.answerCbQuery("No disponible o ya unido.");
+    if (!game || game.state !== 'waiting') return ctx.answerCbQuery("No hay partida activa.");
+    if (game.players.has(ctx.from.id)) return ctx.answerCbQuery("Ya estás dentro.");
+    
     game.players.add(ctx.from.id);
     game.playerData.set(ctx.from.id, { id: ctx.from.id, name: ctx.from.first_name });
+    
     const { text, keyboard } = renderLobby(game);
-    await ctx.editMessageText(text, keyboard);
+    await ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard });
     ctx.answerCbQuery("¡Te has unido!");
   });
 
@@ -120,9 +120,10 @@ export function setupBot() {
     if (!game || game.hostId !== ctx.from.id) return ctx.answerCbQuery("Solo anfitrión.");
     game.settings.impostors = game.settings.impostors >= 3 ? 1 : game.settings.impostors + 1;
     const { text, keyboard } = renderLobby(game);
-    await ctx.editMessageText(text, keyboard);
+    await ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard });
   });
 
+  // --- CATEGORÍAS ---
   bot.action('menu_cat', async (ctx) => {
     const game = ctx.chat?.id ? activeGames.get(ctx.chat.id) : null;
     if (!game || game.hostId !== ctx.from.id) return ctx.answerCbQuery("Solo anfitrión.");
@@ -137,10 +138,10 @@ export function setupBot() {
 
   bot.action(/cat_(.+)/, async (ctx) => {
     const game = ctx.chat?.id ? activeGames.get(ctx.chat.id) : null;
-    if (game) {
+    if (game && game.hostId === ctx.from.id) {
       game.settings.category = ctx.match[1];
       const { text, keyboard } = renderLobby(game);
-      await ctx.editMessageText(text, keyboard);
+      await ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard });
     }
   });
 
@@ -148,17 +149,11 @@ export function setupBot() {
     const game = ctx.chat?.id ? activeGames.get(ctx.chat.id) : null;
     if (game) {
       const { text, keyboard } = renderLobby(game);
-      await ctx.editMessageText(text, keyboard);
+      await ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard });
     }
   });
 
-  bot.action('cancel_game', async (ctx) => {
-    const game = ctx.chat?.id ? activeGames.get(ctx.chat.id) : null;
-    if (!game || game.hostId !== ctx.from.id) return ctx.answerCbQuery("Solo anfitrión.");
-    activeGames.delete(ctx.chat!.id);
-    await ctx.editMessageText("🛑 Partida cancelada.");
-  });
-
+  // --- LÓGICA DE JUEGO ---
   bot.action('start_game', async (ctx) => {
     const chatId = ctx.chat?.id;
     const game = chatId ? activeGames.get(chatId) : null;
@@ -170,7 +165,6 @@ export function setupBot() {
     playersArray.sort(() => Math.random() - 0.5);
     game.impostors = new Set(playersArray.slice(0, game.settings.impostors));
     
-    // Mejor lógica de categoría aleatoria
     let finalCat = game.settings.category;
     if (finalCat === 'Aleatorio') {
       const cats = Object.keys(CATEGORIES);
@@ -187,17 +181,62 @@ export function setupBot() {
     }
 
     const starter = game.playerData.get(playersArray[Math.floor(Math.random() * playersArray.length)]).name;
-    await ctx.editMessageText(`🚨 ¡A JUGAR! 🚨\n\nCategoría: ${finalCat}\n\nEmpieza: ${starter}\n\nEl anfitrión debe marcar quién ganó:`, Markup.inlineKeyboard([
-      [Markup.button.callback('🏆 Ganaron Ciudadanos', 'win_cits')],
-      [Markup.button.callback('🏆 Ganaron Impostores', 'win_imp')]
-    ]));
+    await ctx.editMessageText(`🚨 ¡A JUGAR! 🚨\n\nCategoría: *${finalCat}*\n\nEmpieza: *${starter}*\n\nEl anfitrión debe marcar quién ganó:`, 
+      Markup.inlineKeyboard([
+        [Markup.button.callback('🏆 Ganaron Ciudadanos', 'win_cits')],
+        [Markup.button.callback('🏆 Ganaron Impostores', 'win_imp')]
+      ]).resize()
+    );
+  });
+
+  // --- FINALIZACIÓN Y PUNTOS (Optimizado para Grupos Grandes) ---
+  bot.action(['win_cits', 'win_imp'], async (ctx) => {
+    const chatId = ctx.chat?.id;
+    const game = chatId ? activeGames.get(chatId) : null;
+    
+    // 1. Validaciones rápidas
+    if (!game || game.state !== 'playing') return ctx.answerCbQuery("No hay partida activa.");
+    if (game.hostId !== ctx.from.id) return ctx.answerCbQuery("Solo el anfitrión puede finalizar.", { show_alert: true });
+
+    // 2. Respuesta instantánea al servidor de Telegram para quitar el "cargando"
+    await ctx.answerCbQuery("Calculando puntos...");
+
+    const winner = ctx.callbackQuery.data === 'win_cits' ? 'ciudadanos' : 'impostores';
+    let result = `🏆 *¡GANAN LOS ${winner.toUpperCase()}!* 🏆\n\n📊 *RECUENTO DE PUNTOS:*\n`;
+
+    try {
+      const playersList = Array.from(game.players);
+      for (const p of playersList) {
+        const isImp = game.impostors.has(p as number);
+        let pts = (winner === 'impostores' && isImp) ? 3 : (winner === 'ciudadanos' && !isImp) ? 1 : 0;
+
+        const player = await storage.updatePlayerPoints(p.toString(), chatId.toString(), pts);
+        const name = game.playerData.get(p as number)?.name || "Jugador";
+        result += `${pts > 0 ? '✅' : '❌'} ${name}: +${pts} (Total: ${player.points})\n`;
+      }
+
+      activeGames.delete(chatId);
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🔄 Jugar de nuevo', 'play_again')],
+        [
+          Markup.button.callback('👤 Mis Puntos', 'my_stats'),
+          Markup.button.callback('📊 Ranking Grupo', 'view_group_ranking')
+        ]
+      ]);
+
+      await ctx.editMessageText(result, { parse_mode: 'Markdown', ...keyboard });
+    } catch (e) {
+      console.error(e);
+      await ctx.reply("Error al guardar puntos, pero la partida ha terminado.");
+      activeGames.delete(chatId);
+    }
   });
 
   bot.action('play_again', async (ctx) => {
     const chatId = ctx.chat?.id;
     if (!chatId) return;
-    if (activeGames.has(chatId)) return ctx.answerCbQuery("Ya hay una sala.");
-
+    await ctx.answerCbQuery();
+    
     activeGames.set(chatId, {
       hostId: ctx.from.id,
       hostName: ctx.from.first_name,
@@ -209,42 +248,15 @@ export function setupBot() {
     activeGames.get(chatId).playerData.set(ctx.from.id, { id: ctx.from.id, name: ctx.from.first_name });
 
     const { text, keyboard } = renderLobby(activeGames.get(chatId));
-    await ctx.editMessageText(text, keyboard);
+    await ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard });
   });
 
-  // CORREGIDO: Manejo de victoria simplificado para evitar errores de RegEx
-  bot.action(['win_cits', 'win_imp'], async (ctx) => {
-    const chatId = ctx.chat?.id;
-    const game = chatId ? activeGames.get(chatId) : null;
-    
-    if (!game || game.state !== 'playing') return ctx.answerCbQuery("No hay partida activa.");
-    if (game.hostId !== ctx.from.id) return ctx.answerCbQuery("Solo el anfitrión puede finalizar.", { show_alert: true });
-
-    const winner = ctx.callbackQuery.data === 'win_cits' ? 'ciudadanos' : 'impostores';
-    let result = `🏆 ¡GANAN LOS ${winner.toUpperCase()}!\n\n📊 PUNTOS:\n`;
-
-    for (const p of game.players) {
-      const isImp = game.impostors.has(p);
-      let pts = 0;
-      if (winner === 'impostores' && isImp) pts = 3;
-      else if (winner === 'ciudadanos' && !isImp) pts = 1;
-
-      // Actualizar DB
-      const player = await storage.updatePlayerPoints(p.toString(), chatId!.toString(), pts);
-      result += `${pts > 0 ? '✅' : '❌'} ${game.playerData.get(p).name}: +${pts} (Total: ${player.points})\n`;
-    }
-
-    activeGames.delete(chatId!);
-    const keyboard = Markup.inlineKeyboard([
-      [Markup.button.callback('🔄 Jugar de nuevo', 'play_again')],
-      [
-        Markup.button.callback('👤 Mis Puntos', 'my_stats'),
-        Markup.button.callback('📊 Ranking Grupo', 'view_group_ranking')
-      ]
-    ]);
-
-    await ctx.editMessageText(result, keyboard);
+  bot.action('cancel_game', async (ctx) => {
+    const game = ctx.chat?.id ? activeGames.get(ctx.chat.id) : null;
+    if (!game || game.hostId !== ctx.from.id) return ctx.answerCbQuery("Solo anfitrión.");
+    activeGames.delete(ctx.chat!.id);
+    await ctx.editMessageText("🛑 *Partida cancelada por el anfitrión.*", { parse_mode: 'Markdown' });
   });
 
-  bot.launch().then(() => console.log("🚀 Bot listo!"));
+  bot.launch().then(() => console.log("🚀 Bot de Impostor listo!"));
 }
