@@ -5,10 +5,11 @@ import { eq, desc, and } from "drizzle-orm";
 export interface IStorage {
   getPlayerByTelegramId(telegramId: string, chatId: string): Promise<Player | undefined>;
   createPlayer(player: InsertPlayer): Promise<Player>;
-  updatePlayerPoints(telegramId: string, chatId: string, points: number): Promise<Player>;
+  // Añadimos firstName opcional para poder crear al jugador si no existe
+  updatePlayerPoints(telegramId: string, chatId: string, points: number, firstName?: string): Promise<Player>;
   getTopPlayers(limit: number): Promise<Player[]>;
   getTopPlayersByChat(chatId: string, limit: number): Promise<Player[]>;
-  resetChatStats(chatId: string): Promise<void>; // Nueva función para el botón
+  resetChatStats(chatId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -33,9 +34,20 @@ export class DatabaseStorage implements IStorage {
     return player;
   }
 
-  async updatePlayerPoints(telegramId: string, chatId: string, points: number): Promise<Player> {
-    const player = await this.getPlayerByTelegramId(telegramId, chatId);
-    if (!player) throw new Error("Player not found");
+  // MÉTODO OPTIMIZADO: Crea al jugador si no existe en lugar de dar error
+  async updatePlayerPoints(telegramId: string, chatId: string, points: number, firstName: string = "Jugador"): Promise<Player> {
+    let player = await this.getPlayerByTelegramId(telegramId, chatId);
+
+    if (!player) {
+      // Si el jugador no existe en este chat, lo creamos primero
+      player = await this.createPlayer({
+        telegramId,
+        chatId,
+        firstName,
+        points: 0,
+        gamesPlayed: 0
+      });
+    }
 
     const [updated] = await db
       .update(players)
@@ -50,6 +62,7 @@ export class DatabaseStorage implements IStorage {
         )
       )
       .returning();
+      
     return updated;
   }
 
@@ -70,7 +83,6 @@ export class DatabaseStorage implements IStorage {
       .limit(limit);
   }
 
-  // Lógica para reiniciar los puntos del grupo en la base de datos
   async resetChatStats(chatId: string): Promise<void> {
     await db
       .update(players)
