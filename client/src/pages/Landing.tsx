@@ -6,7 +6,7 @@ import { Leaderboard } from "@/components/Leaderboard";
 import { Shield, Users, Trophy, Bot, ChevronRight, Zap } from "lucide-react";
 
 export default function Landing() {
-  const BOT_URL = "https://t.me/ElImpostorProBot?startgroup=true";
+  const BOT_URL = "https://t.me/impostor_party_juego_bot?startgroup=true";
 
   return (
     <div className="min-h-screen relative overflow-hidden flex flex-col">
