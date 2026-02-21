@@ -86,16 +86,29 @@ export function setupBot() {
     await ctx.answerCbQuery(`👤 ${ctx.from.first_name}\n🏆 Tus puntos: ${pts}`, { show_alert: true });
   });
 
-  // REINICIAR PUNTOS (Solo Anfitrión)
+// REINICIAR PUNTOS (Lógica Real)
   bot.action('reset_group_points', async (ctx) => {
     const chatId = ctx.chat?.id;
     const game = chatId ? activeGames.get(chatId) : null;
+    
     if (!game) return ctx.answerCbQuery("No hay partida activa.");
-    if (game.hostId !== ctx.from.id) return ctx.answerCbQuery("❌ Solo el anfitrión puede reiniciar los puntos.", { show_alert: true });
+    if (game.hostId !== ctx.from.id) {
+      return ctx.answerCbQuery("❌ Solo el anfitrión puede reiniciar los puntos.", { show_alert: true });
+    }
 
-    // Aquí asumimos que storage tiene una función para limpiar el chat o manejamos la lógica
-    await ctx.answerCbQuery("⚠️ Esta función reiniciaría todos los puntos del grupo (Base de datos).", { show_alert: true });
-    // Nota: Para implementar el borrado real, necesitarías storage.resetChatStats(chatId)
+    try {
+      // LLAMADA REAL AL STORAGE
+      await storage.resetChatStats(chatId.toString());
+      
+      await ctx.answerCbQuery("✅ ¡Puntos del grupo reiniciados con éxito!", { show_alert: true });
+      
+      // Opcional: Actualizar el lobby para que todos vean el cambio si es necesario
+      const { text, keyboard } = renderLobby(game);
+      await ctx.editMessageText(text, keyboard);
+    } catch (e) {
+      console.error(e);
+      await ctx.answerCbQuery("❌ Error al reiniciar los puntos.", { show_alert: true });
+    }
   });
 
   bot.action('join_game', async (ctx) => {
