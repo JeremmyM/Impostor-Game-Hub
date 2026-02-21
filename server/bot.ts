@@ -189,33 +189,52 @@ export function setupBot() {
     );
   });
 
-  // --- FINALIZACIÓN Y PUNTOS (Optimizado para Grupos Grandes) ---
-  bot.action(['win_cits', 'win_imp'], async (ctx) => {
+bot.action(['win_cits', 'win_imp'], async (ctx) => {
     const chatId = ctx.chat?.id;
     const game = chatId ? activeGames.get(chatId) : null;
     
-    // 1. Validaciones rápidas
-    if (!game || game.state !== 'playing') return ctx.answerCbQuery("No hay partida activa.");
-    if (game.hostId !== ctx.from.id) return ctx.answerCbQuery("Solo el anfitrión puede finalizar.", { show_alert: true });
+    // 1. Si el bot se reinició, avisamos al usuario en lugar de crashear
+    if (!game) {
+      await ctx.answerCbQuery("⚠️ El servidor se reinició. Por favor, usen /iniciar de nuevo.", { show_alert: true });
+      return;
+    }
+    
+    if (game.state !== 'playing') return ctx.answerCbQuery("La partida ya finalizó.");
+    if (game.hostId !== ctx.from.id) return ctx.answerCbQuery("❌ Solo el anfitrión puede finalizar.", { show_alert: true });
 
-    // 2. Respuesta instantánea al servidor de Telegram para quitar el "cargando"
-    await ctx.answerCbQuery("Calculando puntos...");
+    // 2. Quitamos el reloj de carga inmediatamente
+    await ctx.answerCbQuery("Guardando resultados...");
 
     const winner = ctx.callbackQuery.data === 'win_cits' ? 'ciudadanos' : 'impostores';
-    let result = `🏆 *¡GANAN LOS ${winner.toUpperCase()}!* 🏆\n\n📊 *RECUENTO DE PUNTOS:*\n`;
+    let result = `🏆 *¡GANAN LOS ${winner.toUpperCase()}!* 🏆\n\n📊 *RECUENTO:*\n`;
 
     try {
       const playersList = Array.from(game.players);
-      for (const p of playersList) {
+      
+      // Usamos Promise.all para que sea mucho más rápido en grupos grandes
+      const updatePromises = playersList.map(async (p) => {
         const isImp = game.impostors.has(p as number);
-        let pts = (winner === 'impostores' && isImp) ? 3 : (winner === 'ciudadanos' && !isImp) ? 1 : 0;
+        let pts = 0;
+        if (winner === 'impostores' && isImp) pts = 3;
+        else if (winner === 'ciudadanos' && !isImp) pts = 1;
 
-        const player = await storage.updatePlayerPoints(p.toString(), chatId.toString(), pts);
         const name = game.playerData.get(p as number)?.name || "Jugador";
-        result += `${pts > 0 ? '✅' : '❌'} ${name}: +${pts} (Total: ${player.points})\n`;
-      }
+        
+        try {
+          const player = await storage.updatePlayerPoints(p.toString(), chatId.toString(), pts);
+          return `${pts > 0 ? '✅' : '❌'} ${name}: +${pts} (Total: ${player.points})\n`;
+        } catch (dbErr) {
+          console.error(`Error DB para jugador ${p}:`, dbErr);
+          return `⚠️ ${name}: No se pudieron guardar sus +${pts} pts\n`;
+        }
+      });
 
+      const lines = await Promise.all(updatePromises);
+      result += lines.join('');
+
+      // 3. Limpiamos la partida SOLO después de intentar guardar todo
       activeGames.delete(chatId);
+
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('🔄 Jugar de nuevo', 'play_again')],
         [
@@ -226,12 +245,12 @@ export function setupBot() {
 
       await ctx.editMessageText(result, { parse_mode: 'Markdown', ...keyboard });
     } catch (e) {
-      console.error(e);
-      await ctx.reply("Error al guardar puntos, pero la partida ha terminado.");
+      console.error("Error crítico en victoria:", e);
+      await ctx.reply("❌ Error técnico al finalizar. La partida se ha cerrado.");
       activeGames.delete(chatId);
     }
   });
-
+  
   bot.action('play_again', async (ctx) => {
     const chatId = ctx.chat?.id;
     if (!chatId) return;
