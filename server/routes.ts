@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { setupBot } from "./bot";
 
 export async function registerRoutes(
-  app: Express,
+  app: Express, // La APP de Express debe ir primero
   httpServer: Server
 ): Promise<Server> {
   
@@ -34,10 +34,9 @@ export async function registerRoutes(
     }
   });
 
-  // Estadísticas generales (opcional para dashboard)
+  // Estadísticas generales (opcional)
   app.get("/api/stats", async (_req, res) => {
     try {
-      // Nota: Asegúrate de que getTotalStats existe en tu storage.ts
       const stats = await storage.getTotalStats?.() || { totalPlayers: 0, totalGames: 0 };
       const topPlayers = await storage.getTopPlayers(10);
       res.json({
