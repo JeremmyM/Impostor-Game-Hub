@@ -1,99 +1,103 @@
-import { useStats } from "@/hooks/use-stats";
-import { Trophy, Medal, User, Trash2 } from "lucide-react";
-import { motion } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
+import { Player } from "@shared/schema";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Trophy, Users, Trash2 } from "lucide-react";
+import { useRoute } from "wouter";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { Button } from "@/components/ui/button";
 
 export function Leaderboard() {
-  const { data: stats, isLoading } = useStats();
+  // Detectamos si hay un chatId en la URL
+  const [, params] = useRoute("/ranking/:chatId");
+  const chatId = params?.chatId;
+
+  // Si hay chatId usamos la ruta de grupo, si no, la general
+  const queryPath = chatId ? `/api/players/chat/${chatId}` : "/api/players";
+
+  const { data: players, isLoading } = useQuery<Player[]>({
+    queryKey: [queryPath],
+  });
 
   const handleReset = async () => {
-    if (window.confirm("⚠️ ¿Seguro que quieres borrar TODOS los puntos y jugadores? Esto no se puede deshacer.")) {
-      try {
-        await fetch("/api/reset", { method: "POST" });
-        window.location.reload();
-      } catch (e) {
-        alert("Error al reiniciar los puntos");
-      }
+    if (confirm("¿Estás seguro de que quieres resetear los puntos de este grupo?")) {
+      // Aquí podrías implementar una ruta de borrado por chatId si lo deseas
+      alert("Función de reseteo en desarrollo para grupos individuales.");
     }
   };
 
   if (isLoading) {
-    return (
-      <div className="w-full max-w-2xl mx-auto p-8 glass-panel rounded-2xl animate-pulse">
-        <div className="h-8 bg-primary/10 rounded w-1/3 mb-6 mx-auto"></div>
-        <div className="space-y-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-16 bg-primary/5 rounded border border-primary/10"></div>
-          ))}
-        </div>
-      </div>
-    );
+    return <div className="p-8 text-center">Cargando ranking...</div>;
   }
 
-  const topPlayers = stats?.topPlayers || [];
-
   return (
-    <div className="w-full max-w-3xl mx-auto">
-      <div className="glass-panel rounded-2xl overflow-hidden border-primary/30">
-        <div className="p-6 border-b border-primary/20 bg-primary/5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Trophy className="w-6 h-6 text-yellow-500" />
-            <h3 className="text-xl font-bold text-foreground">Agentes de Élite</h3>
+    <div className="min-h-screen bg-gray-50 p-4 md:p-8">
+      <Card className="max-w-4xl mx-auto border-t-8" style={{ borderColor: '#0b57d0' }}>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7">
+          <div>
+            <CardTitle className="text-3xl font-bold flex items-center gap-2" style={{ color: '#0b57d0' }}>
+              <Trophy className="h-8 w-8 text-yellow-500" />
+              {chatId ? "Ranking del Grupo" : "Ranking Global"}
+            </CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              {chatId ? `ID del Grupo: ${chatId}` : "Todos los jugadores registrados"}
+            </p>
           </div>
           <div className="flex items-center gap-4">
-            <div className="text-sm font-mono text-muted-foreground">
-              Total Jugadores: <span className="text-primary font-bold">{stats?.totalPlayers || 0}</span>
+            <div className="text-right hidden sm:block">
+              <p className="text-sm font-medium">Total Jugadores</p>
+              <p className="text-2xl font-bold">{players?.length || 0}</p>
             </div>
-            {/* BOTÓN DE REINICIO AÑADIDO */}
-            <button 
+            <Button 
+              variant="destructive" 
+              size="sm" 
               onClick={handleReset}
-              className="flex items-center gap-1 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 px-3 py-1.5 rounded text-xs font-bold transition-colors"
-              title="Borrar todos los puntos"
+              className="flex gap-2"
             >
-              <Trash2 className="w-4 h-4" /> RESETEAR
-            </button>
+              <Trash2 className="h-4 w-4" /> Reset
+            </Button>
           </div>
-        </div>
-
-        <div className="divide-y divide-primary/10">
-          {topPlayers.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground font-mono">
-              Esperando datos de la primera misión...
-            </div>
-          ) : (
-            topPlayers.map((player, index) => (
-              <motion.div 
-                key={player.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="p-4 flex items-center gap-4 hover:bg-primary/5 transition-colors"
-              >
-                <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center font-display font-bold text-xl text-primary/50">
-                  {index === 0 ? <Medal className="text-yellow-500 w-6 h-6" /> : 
-                   index === 1 ? <Medal className="text-gray-400 w-6 h-6" /> :
-                   index === 2 ? <Medal className="text-amber-700 w-6 h-6" /> : 
-                   `#${index + 1}`}
-                </div>
-                
-                <div className="flex-grow">
-                  <div className="font-bold text-foreground font-mono text-lg">
-                    {player.firstName || player.username || "Agente Desconocido"}
-                  </div>
-                  {player.username && (
-                    <div className="text-xs text-muted-foreground">@{player.username}</div>
-                  )}
-                </div>
-
-                <div className="text-right">
-                  <div className="text-2xl font-bold text-primary font-display">
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-slate-50">
+                <TableHead className="w-[80px]">Posición</TableHead>
+                <TableHead>Jugador</TableHead>
+                <TableHead className="text-right">Partidas</TableHead>
+                <TableHead className="text-right font-bold text-slate-900">Puntos</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {players?.map((player, index) => (
+                <TableRow key={player.id} className="hover:bg-blue-50/50 transition-colors">
+                  <TableCell className="font-medium">
+                    {index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : `${index + 1}º`}
+                  </TableCell>
+                  <TableCell>
+                    <div className="font-semibold text-slate-700">{player.firstName}</div>
+                    {player.username && <div className="text-xs text-slate-400">@{player.username}</div>}
+                  </TableCell>
+                  <TableCell className="text-right">{player.gamesPlayed}</TableCell>
+                  <TableCell className="text-right font-bold text-lg" style={{ color: '#0b57d0' }}>
                     {player.points}
-                  </div>
-                  <div className="text-xs text-muted-foreground uppercase tracking-wider">PTS</div>
-                </div>
-              </motion.div>
-            ))
-          )}
-        </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {players?.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-10 text-muted-foreground">
+                    No hay jugadores registrados en este grupo aún.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+      
+      <div className="text-center mt-8 text-slate-400 text-xs">
+        &copy; 2026 Impostor Game Hub | Estilo corporativo aplicado
       </div>
     </div>
   );
