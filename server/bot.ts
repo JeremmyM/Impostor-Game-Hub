@@ -3,7 +3,7 @@ import { storage } from './storage';
 
 const activeGames = new Map<number, any>();
 
-// --- CATEGORÍAS ACTUALIZADAS ---
+// --- CATEGORÍAS GIGANTES ACTUALIZADAS ---
 const CATEGORIES: Record<string, string[]> = {
   'Personas 👤': [
     'Gheo', 'Nico', 'Ramirin', 'Presi', 
@@ -16,9 +16,26 @@ const CATEGORIES: Record<string, string[]> = {
   'Películas 🎬': ['Titanic', 'Avatar', 'Star Wars', 'Harry Potter', 'El Rey León', 'Jurassic Park', 'Toy Story', 'Shrek', 'Batman', 'Spider-Man', 'Avengers', 'Coco', 'Joker', 'Matrix', 'Buscando a Nemo', 'Volver al Futuro', 'Terminator', 'Up', 'Mi Pobre Angelito', 'E.T.', 'Intensamente', 'El Señor de los Anillos', 'Forrest Gump', 'Monsters Inc'],  
   'Personajes 🦸‍♂️': ['Homero Simpson', 'Pikachu', 'Superman', 'Mickey Mouse', 'Darth Vader', 'Bob Esponja', 'Goku', 'Mario Bros', 'Barbie', 'Iron Man'],
   'Teorías 🧠': ['Relatividad', 'Evolución', 'Big Bang', 'Teoría de Cuerdas', 'Efecto Mandela', 'Efecto Mariposa', 'Gato de Schrödinger', 'Multiverso', 'Tierra Plana', 'Panspermia'],  
-  'Animales 🦁': ['León', 'Elefante', 'Tigre', 'Jirafa', 'Delfín', 'Pingüino', 'Oso', 'Lobo', 'Tiburón', 'Cocodrilo', 'Perezoso', 'Avestruz', 'Canguro', 'Camaleón', 'Ornitorrinco', 'Zorrillo', 'Llama', 'Mapache', 'Mono', 'Cerdo', 'Gallina', 'Hiena', 'Burro', 'Pulpo', 'Camello'],  
   'Lugares 🌎': ['París', 'Nueva York', 'Roma', 'Las Vegas', 'Área 51', 'Chernobyl', 'Polo Norte', 'Venecia', 'El Vaticano', 'Dubai', 'Hawái', 'Machu Picchu', 'Hollywood', 'Transilvania', 'Australia', 'Egipto', 'Amazonas'],  
-  'Random 🎲': ['Inodoro', 'Dentífrico', 'Control Remoto', 'Media sucia', 'Cuchara', 'Papel Higiénico', 'Semáforo', 'Paraguas']
+  'Animales 🦁': ['Perro','Gato','León','Tigre','Elefante','Jirafa','Cebra','Mono','Lobo','Oso','Delfín','Ballena','Águila','Serpiente','Cocodrilo'],
+  'Frutas 🍎': ['Manzana','Pera','Banana','Uva','Fresa','Mango','Piña','Sandía','Melón','Papaya','Kiwi','Durazno','Cereza','Limón','Mandarina'],
+  'Verduras 🥦': ['Tomate','Lechuga','Zanahoria','Brócoli','Pepino','Espinaca','Papa','Cebolla','Ajo','Pimiento','Coliflor','Berenjena','Maíz','Remolacha','Calabacín'],
+  'Países 🏳️': ['Ecuador','Colombia','Perú','Brasil','Argentina','Chile','México','España','Francia','Italia','Alemania','Rusia','China','Japón','Canadá'],
+  'Ciudades 🏙️': ['Quito','Guayaquil','Lima','Bogotá','Madrid','Barcelona','París','Roma','Moscú','Tokio','Nueva York','Los Ángeles','Berlín','Lisboa','Toronto'],
+  'Profesiones 👨‍⚕️': ['Doctor','Ingeniero','Arquitecto','Profesor','Abogado','Enfermero','Piloto','Policía','Bombero','Chef','Programador','Diseñador','Contador','Mecánico','Electricista'],
+  'Deportes ⚽': ['Fútbol','Baloncesto','Tenis','Voleibol','Natación','Boxeo','Atletismo','Ciclismo','Golf','Béisbol','Rugby','Hockey','Karate','Taekwondo','Surf'],
+  'Videojuegos 🎮': ['Minecraft','Fortnite','Call of Duty','FIFA','GTA','Valorant','Free Fire','Among Us','Clash Royale','Roblox','League of Legends','Resident Evil','The Last of Us','God of War','Fall Guys'],
+  'Superhéroes 🦸‍♂️': ['Batman','Superman','Spider-Man','Iron Man','Thor','Hulk','Capitán América','Flash','Wonder Woman','Aquaman','Black Panther','Doctor Strange','Deadpool','Wolverine','Green Lantern'],
+  'Instrumentos 🎸': ['Guitarra','Piano','Batería','Violín','Flauta','Saxofón','Trompeta','Arpa','Acordeón','Bajo','Clarinete','Trombón','Ukelele','Órgano','Cello'],
+  'Comida 🍔': ['Pizza','Hamburguesa','Hot dog','Tacos','Sushi','Pasta','Arroz','Pollo','Carne','Ensalada','Lasaña','Empanada','Ceviche','Arepa','Burrito'],
+  'Bebidas 🥤': ['Agua','Coca-Cola','Pepsi','Jugo','Café','Té','Leche','Chocolate','Energizante','Cerveza','Vino','Whisky','Batido','Limonada','Capuchino'],
+  'Colores 🎨': ['Rojo','Azul','Verde','Amarillo','Negro','Blanco','Morado','Naranja','Rosa','Gris','Celeste','Turquesa','Dorado','Plateado','Marrón'],
+  'Transporte 🚗': ['Carro','Moto','Bicicleta','Avión','Helicóptero','Barco','Submarino','Tren','Metro','Bus','Camión','Scooter','Patineta','Taxi','Yate'],
+  'Electrónicos 📱': ['Celular','Tablet','Laptop','Computadora','Televisor','Audífonos','Cámara','Consola','Impresora','Monitor','Router','Smartwatch','Proyector','Teclado','Mouse'],
+  'Redes Sociales 🌐': ['Instagram','TikTok','Facebook','Twitter','YouTube','Snapchat','LinkedIn','WhatsApp','Telegram','Discord','Twitch','Pinterest','Threads','Reddit','Messenger'],
+  'Marcas 🏷️': ['Nike','Adidas','Puma','Reebok','Under Armour','New Balance','Fila','Asics','Umbro','Converse','Vans','Jordan','Lotto','Mizuno','Kappa'],
+  'Materias 📚': ['Matemáticas','Física','Química','Biología','Historia','Geografía','Literatura','Filosofía','Arte','Música','Educación Física','Programación','Economía','Estadística','Álgebra'],
+  'Construcción 🏗️': ['Cemento','Hormigón','Acero','Ladrillo','Arena','Grava','Viga','Columna','Cimiento','Techo','Muro','Andamio','Excavadora','Grúa','Encofrado']
 };
 
 const renderLobby = (game: any) => {
@@ -129,6 +146,7 @@ export function setupBot() {
     await ctx.editMessageText("🛑 *Partida cancelada por el anfitrión.*", { parse_mode: 'Markdown' });
   });
 
+  // --- NUEVO MENÚ DE CATEGORÍAS GIGANTE ---
   bot.action('menu_cat', async (ctx) => {
     const game = activeGames.get(ctx.chat!.id);
     if (!game || game.hostId !== ctx.from.id) return ctx.answerCbQuery("Solo anfitrión.");
@@ -136,8 +154,17 @@ export function setupBot() {
     const keyboard = Markup.inlineKeyboard([
       [Markup.button.callback('👤 Personas', 'cat_Personas 👤'), Markup.button.callback('🎬 Películas', 'cat_Películas 🎬')],
       [Markup.button.callback('🦸‍♂️ Personajes', 'cat_Personajes 🦸‍♂️'), Markup.button.callback('🧠 Teorías', 'cat_Teorías 🧠')],
-      [Markup.button.callback('🎮 Juegos', 'cat_Videojuegos 🎮'), Markup.button.callback('🦁 Animales', 'cat_Animales 🦁')],
-      [Markup.button.callback('🌎 Lugares', 'cat_Lugares 🌎'), Markup.button.callback('🎲 Random', 'cat_Random 🎲')],
+      [Markup.button.callback('🦁 Animales', 'cat_Animales 🦁'), Markup.button.callback('🌎 Lugares', 'cat_Lugares 🌎')],
+      [Markup.button.callback('🍎 Frutas', 'cat_Frutas 🍎'), Markup.button.callback('🥦 Verduras', 'cat_Verduras 🥦')],
+      [Markup.button.callback('🏳️ Países', 'cat_Países 🏳️'), Markup.button.callback('🏙️ Ciudades', 'cat_Ciudades 🏙️')],
+      [Markup.button.callback('👨‍⚕️ Profesiones', 'cat_Profesiones 👨‍⚕️'), Markup.button.callback('⚽ Deportes', 'cat_Deportes ⚽')],
+      [Markup.button.callback('🎮 Videojuegos', 'cat_Videojuegos 🎮'), Markup.button.callback('🦸‍♂️ Superhéroes', 'cat_Superhéroes 🦸‍♂️')],
+      [Markup.button.callback('🎸 Instrumentos', 'cat_Instrumentos 🎸'), Markup.button.callback('🍔 Comida', 'cat_Comida 🍔')],
+      [Markup.button.callback('🥤 Bebidas', 'cat_Bebidas 🥤'), Markup.button.callback('🎨 Colores', 'cat_Colores 🎨')],
+      [Markup.button.callback('🚗 Transporte', 'cat_Transporte 🚗'), Markup.button.callback('📱 Electrónicos', 'cat_Electrónicos 📱')],
+      [Markup.button.callback('🌐 Redes', 'cat_Redes Sociales 🌐'), Markup.button.callback('🏷️ Marcas', 'cat_Marcas 🏷️')],
+      [Markup.button.callback('📚 Materias', 'cat_Materias 📚'), Markup.button.callback('🏗️ Construcción', 'cat_Construcción 🏗️')],
+      [Markup.button.callback('🎲 ALEATORIO 🎲', 'cat_Aleatorio')],
       [Markup.button.callback('🔙 Volver', 'back_lobby')]
     ]);
     await ctx.editMessageText("Selecciona categoría:", keyboard);
@@ -204,6 +231,7 @@ export function setupBot() {
 
     game.impostors = new Set(playersArray.slice(0, numImpostors));
     
+    // LÓGICA DE CATEGORÍA ALEATORIA
     let finalCat = game.settings.category;
     if (finalCat === 'Aleatorio' || !CATEGORIES[finalCat]) {
       const cats = Object.keys(CATEGORIES);
@@ -245,7 +273,7 @@ export function setupBot() {
         let pts = (winner === 'impostores' && isImp) ? 3 : (winner === 'ciudadanos' && !isImp) ? 1 : 0;
         const name = game.playerData.get(p as number)?.name || "Jugador";
         const player = await storage.updatePlayerPoints(p.toString(), chatId.toString(), pts, name);
-        // Marcador con círculo azul
+        // Círculo azul para victoria, blanco para derrota
         return `${pts > 0 ? '🔵' : '⚪️'} ${name}: +${pts} (Total: ${player.points})\n`;
     });
 
