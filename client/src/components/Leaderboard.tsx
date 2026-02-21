@@ -2,17 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import { Player } from "@shared/schema";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Trophy, Users, Trash2 } from "lucide-react";
+import { Trophy, Trash2 } from "lucide-react";
 import { useRoute } from "wouter";
-import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 
 export function Leaderboard() {
-  // Detectamos si hay un chatId en la URL
   const [, params] = useRoute("/ranking/:chatId");
   const chatId = params?.chatId;
 
-  // Si hay chatId usamos la ruta de grupo, si no, la general
   const queryPath = chatId ? `/api/players/chat/${chatId}` : "/api/players";
 
   const { data: players, isLoading } = useQuery<Player[]>({
@@ -20,14 +17,13 @@ export function Leaderboard() {
   });
 
   const handleReset = async () => {
-    if (confirm("¿Estás seguro de que quieres resetear los puntos de este grupo?")) {
-      // Aquí podrías implementar una ruta de borrado por chatId si lo deseas
-      alert("Función de reseteo en desarrollo para grupos individuales.");
+    if (confirm("¿Estás seguro de que quieres resetear los puntos?")) {
+      alert("Función de reseteo en desarrollo.");
     }
   };
 
   if (isLoading) {
-    return <div className="p-8 text-center">Cargando ranking...</div>;
+    return <div className="p-8 text-center font-medium">Cargando ranking...</div>;
   }
 
   return (
@@ -40,12 +36,12 @@ export function Leaderboard() {
               {chatId ? "Ranking del Grupo" : "Ranking Global"}
             </CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
-              {chatId ? `ID del Grupo: ${chatId}` : "Todos los jugadores registrados"}
+              {chatId ? `ID: ${chatId}` : "Todos los jugadores registrados"}
             </p>
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
-              <p className="text-sm font-medium">Total Jugadores</p>
+              <p className="text-sm font-medium">Jugadores</p>
               <p className="text-2xl font-bold">{players?.length || 0}</p>
             </div>
             <Button 
@@ -87,7 +83,7 @@ export function Leaderboard() {
               {players?.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center py-10 text-muted-foreground">
-                    No hay jugadores registrados en este grupo aún.
+                    No hay registros aún.
                   </TableCell>
                 </TableRow>
               )}
@@ -97,7 +93,7 @@ export function Leaderboard() {
       </Card>
       
       <div className="text-center mt-8 text-slate-400 text-xs">
-        &copy; 2026 Impostor Game Hub | Estilo corporativo aplicado
+        &copy; 2026 Impostor Game Hub
       </div>
     </div>
   );
