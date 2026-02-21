@@ -3,7 +3,7 @@ import { storage } from './storage';
 
 const activeGames = new Map<number, any>();
 
-// --- NUEVAS CATEGORÍAS ACTUALIZADAS ---
+// --- CATEGORÍAS ACTUALIZADAS ---
 const CATEGORIES: Record<string, string[]> = {
   'Amigos 👥': ['Gheo', 'Nico', 'Ramirin', 'Presi', 'El Impostor', 'El más manco', 'El que siempre miente'],
   'Películas 🎬': ['Titanic', 'Avatar', 'Star Wars', 'Harry Potter', 'El Rey León', 'Jurassic Park', 'Toy Story', 'Shrek', 'Batman', 'Spider-Man', 'Avengers', 'Coco', 'Joker'],
@@ -18,10 +18,8 @@ const CATEGORIES: Record<string, string[]> = {
 const renderLobby = (game: any) => {
   let playerNames = Array.from(game.playerData.values()).map((p: any) => `- ${p.name}`).join('\n');
   
-  // Mostrar "Caos" si la configuración de impostores es especial
-  let impDisplay = game.settings.impostors === -1 ? "🎲 Aleatorio (0-2)" : 
-                   game.settings.impostors === 99 ? "🔥 ¡TODOS IMPOSTORES!" : 
-                   game.settings.impostors;
+  // Display amigable: -1 es el Modo Caos
+  let impDisplay = game.settings.impostors === -1 ? "🌀 Modo Caos" : game.settings.impostors;
 
   const text = `🎮 *¡Partida creada por ${game.hostName}!* \n\n` +
                `⚙️ *CONFIGURACIÓN:*\n` +
@@ -56,7 +54,7 @@ export function setupBot() {
   bot.catch((err: any, ctx) => { console.error(`Error:`, err); });
 
   bot.start(async (ctx) => {
-    await ctx.replyWithMarkdown(`👋 ¡Hola ${ctx.from.first_name}!\n\nYa estoy listo para enviarte tus palabras secretas.\n\n📍 Usa /iniciar en tu grupo para jugar.`);
+    await ctx.replyWithMarkdown(`👋 ¡Hola ${ctx.from.first_name}!\n\nYa estoy listo para enviarte tus roles.\n\n📍 Usa /iniciar en tu grupo para jugar.`);
   });
 
   bot.command('iniciar', async (ctx) => {
@@ -78,7 +76,6 @@ export function setupBot() {
     await ctx.replyWithMarkdown(text, keyboard);
   });
 
-  // --- LÓGICA DE CATEGORÍAS ---
   bot.action('menu_cat', async (ctx) => {
     const game = activeGames.get(ctx.chat!.id);
     if (!game || game.hostId !== ctx.from.id) return ctx.answerCbQuery("Solo anfitrión.");
@@ -102,22 +99,19 @@ export function setupBot() {
     }
   });
 
-  // --- LÓGICA DE IMPOSTORES (MODO CAOS) ---
   bot.action('toggle_imp', async (ctx) => {
     const game = activeGames.get(ctx.chat!.id);
     if (!game || game.hostId !== ctx.from.id) return ctx.answerCbQuery("Solo anfitrión.");
     
-    // Ciclo: 1 -> 2 -> Aleatorio (0-2) -> Todos Impostores -> 1
+    // Ciclo: 1 -> 2 -> Modo Caos (-1) -> 1
     if (game.settings.impostors === 1) game.settings.impostors = 2;
-    else if (game.settings.impostors === 2) game.settings.impostors = -1; // -1 significa Aleatorio
-    else if (game.settings.impostors === -1) game.settings.impostors = 99; // 99 significa Todos
+    else if (game.settings.impostors === 2) game.settings.impostors = -1;
     else game.settings.impostors = 1;
 
     const { text, keyboard } = renderLobby(game);
     await ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard }).catch(() => {});
   });
 
-  // --- RESTO DE ACCIONES (JOIN, STATS, ETC) ---
   bot.action('join_game', async (ctx) => {
     const game = activeGames.get(ctx.chat!.id);
     if (!game || game.state !== 'waiting') return ctx.answerCbQuery("No hay sala.");
@@ -145,15 +139,20 @@ export function setupBot() {
     const playersArray = Array.from(game.players);
     playersArray.sort(() => Math.random() - 0.5);
 
-    // DETERMINAR CANTIDAD DE IMPOSTORES
+    // LÓGICA DE INCERTIDUMBRE (Modo Caos)
     let numImpostors = game.settings.impostors;
-    if (numImpostors === -1) numImpostors = Math.floor(Math.random() * 3); // 0, 1 o 2
-    if (numImpostors === 99) numImpostors = game.players.size; // Todos
+    if (numImpostors === -1) {
+      const rand = Math.random();
+      if (rand < 0.15) numImpostors = 0; // 15% Nadie
+      else if (rand < 0.30) numImpostors = game.players.size; // 15% Todos (Caos secreto)
+      else if (rand < 0.70) numImpostors = 1; // 40% Uno
+      else numImpostors = 2; // 30% Dos
+    }
 
     game.impostors = new Set(playersArray.slice(0, numImpostors));
     
     let finalCat = game.settings.category;
-    if (!CATEGORIES[finalCat]) {
+    if (finalCat === 'Aleatorio' || !CATEGORIES[finalCat]) {
       const cats = Object.keys(CATEGORIES);
       finalCat = cats[Math.floor(Math.random() * cats.length)];
     }
@@ -170,12 +169,13 @@ export function setupBot() {
     }
 
     const starter = game.playerData.get(playersArray[Math.floor(Math.random() * playersArray.length)]).name;
-    await ctx.editMessageText(`🚨 ¡A JUGAR! (Impostores: ${numImpostors})\n\n📚 Categoría: *${finalCat}*\n🗣 Empieza: *${starter}*`, 
+    const impDisplay = game.settings.impostors === -1 ? "❓ Desconocido (Caos)" : numImpostors;
+
+    await ctx.editMessageText(`🚨 ¡A JUGAR! 🚨\n\n📚 Categoría: *${finalCat}*\n😈 Impostores: *${impDisplay}*\n🗣 Empieza: *${starter}*`, 
       Markup.inlineKeyboard([[Markup.button.callback('🏆 Ciudadanos', 'win_cits'), Markup.button.callback('🏆 Impostores', 'win_imp')]])
     );
   });
 
-  // --- FINALIZACIÓN ---
   bot.action(['win_cits', 'win_imp'], async (ctx) => {
     const chatId = ctx.chat!.id;
     const game = activeGames.get(chatId);
@@ -199,17 +199,15 @@ export function setupBot() {
   });
 
   bot.action('play_again', async (ctx) => {
-    // Redirige al comando iniciar simplificado
     const chatId = ctx.chat!.id;
     activeGames.delete(chatId);
     // @ts-ignore
-    return bot.handleUpdate(ctx.update); 
+    return bot.handleUpdate({ ...ctx.update, message: { ...ctx.update.callback_query.message, text: '/iniciar', entities: [{ type: 'bot_command', offset: 0, length: 8 }] } }); 
   });
 
-  // --- SISTEMA ANTI-SUEÑO ---
   bot.launch().then(() => console.log("🚀 BOT ONLINE"));
 
-  const URL_DE_TU_APP = "https://tu-proyecto.onrender.com"; // CAMBIA ESTO
+  const URL_DE_TU_APP = "https://tu-proyecto.onrender.com"; // ⚠️ CAMBIA ESTO
   setInterval(() => {
     fetch(URL_DE_TU_APP).catch(() => {});
   }, 10 * 60 * 1000);
