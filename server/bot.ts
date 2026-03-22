@@ -2,6 +2,8 @@ import { Telegraf, Markup } from 'telegraf';
 import { storage } from './storage';
 
 const activeGames = new Map<number, any>();
+// NUEVO: Memoria para guardar las palabras ya usadas en cada grupo
+const usedWordsPerChat = new Map<number, Set<string>>();
 
 // --- CATEGORÍAS GIGANTES ACTUALIZADAS ---
 const CATEGORIES: Record<string, string[]> = {
@@ -211,7 +213,8 @@ export function setupBot() {
   });
 
   bot.action('start_game', async (ctx) => {
-    const game = activeGames.get(ctx.chat!.id);
+    const chatId = ctx.chat!.id;
+    const game = activeGames.get(chatId);
     if (!game || game.hostId !== ctx.from.id) return;
     if (game.players.size < 3) return ctx.answerCbQuery("Mínimo 3 personas.", { show_alert: true });
 
@@ -239,7 +242,25 @@ export function setupBot() {
     }
 
     const words = CATEGORIES[finalCat];
-    const secretWord = words[Math.floor(Math.random() * words.length)];
+
+    // SISTEMA ANTI-REPETICIÓN DE PALABRAS
+    if (!usedWordsPerChat.has(chatId)) {
+      usedWordsPerChat.set(chatId, new Set<string>());
+    }
+    const chatUsedWords = usedWordsPerChat.get(chatId)!;
+
+    // Filtramos las palabras que no se han usado
+    let availableWords = words.filter(w => !chatUsedWords.has(w));
+
+    // Si ya se usaron todas las palabras de esta categoría, la reiniciamos
+    if (availableWords.length === 0) {
+      words.forEach(w => chatUsedWords.delete(w)); 
+      availableWords = words; 
+    }
+
+    // Escogemos la palabra secreta de las disponibles y la marcamos como usada
+    const secretWord = availableWords[Math.floor(Math.random() * availableWords.length)];
+    chatUsedWords.add(secretWord);
 
     for (const p of game.players) {
       const isImp = game.impostors.has(p as number);
