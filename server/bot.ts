@@ -8,7 +8,7 @@ const usedWordsPerChat = new Map<number, Set<string>>();
 // --- CATEGORÍAS GIGANTES ACTUALIZADAS ---
 const CATEGORIES: Record<string, string[]> = {
   'Personas 👤': [
-    'Gheo', 'Nico', 'Ramirin', 'Presi', 
+    'Gheo', 'Nico', 'Ramirin', 
     'Messi', 'Cristiano Ronaldo', 'Elon Musk', 'Shakira', 'Bad Bunny', 'Ibai Llanos', 'Michael Jackson', 'MrBeast', 
     'AuronPlay', 'El Rubius', 'Luisito Comunica', 'Bizarrap', 'Daddy Yankee', 'Freddie Mercury', 'Eminem', 'Justin Bieber', 'Rosalía',
     'The Rock', 'Will Smith', 'Jackie Chan', 'Leonardo DiCaprio', 'Johnny Depp', 'Tom Cruise', 'Keanu Reeves', 'Taylor Swift', 'Zendaya',
